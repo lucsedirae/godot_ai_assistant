@@ -14,7 +14,7 @@ load_dotenv()
 
 def main():
     display_manager = ConsoleOutputManager(CONSOLE_LANG)
-    display_manager.print_welcome()
+    display_manager.print_title()
     
     # Set config
     config = {
@@ -36,12 +36,7 @@ def main():
             embedding_provider=config['embedding_provider']
         )
         
-        # Show project status
-        print("\n" + "="*80)
-        print("Project Status:")
-        print("="*80)
-        print(project_analyzer.get_project_info())
-        print("="*80)
+        display_manager.print_project_status(project_analyzer)
         
         # Load or create vector database
         assistant.load_or_create_vectorstore()
@@ -49,16 +44,17 @@ def main():
         # Setup QA chain
         assistant.setup_qa_chain()
         
-        print("\n" + "="*80)
-        print("Assistant ready! Ask me anything about Godot development or your game lore.")
-        print("\nSpecial Commands:")
-        print("  /project info      - Show your project details")
-        print("  /project structure - Show project file tree")
-        print("  /read <file>       - Read a file from your project")
-        print("  /list [pattern]    - List files (e.g., /list *.gd)")
-        print("  /lore              - Show lore files status")
-        print("  quit or exit       - Exit the assistant")
-        print("="*80 + "\n")
+        display_manager.print_welcome_message()
+        # print("\n" + "="*80)
+        # print("Assistant ready! Ask me anything about Godot development or your game lore.")
+        # print("\nSpecial Commands:")
+        # print("  /project info      - Show your project details")
+        # print("  /project structure - Show project file tree")
+        # print("  /read <file>       - Read a file from your project")
+        # print("  /list [pattern]    - List files (e.g., /list *.gd)")
+        # print("  /lore              - Show lore files status")
+        # print("  quit or exit       - Exit the assistant")
+        # print("="*80 + "\n")
         
         # Interactive loop
         while True:
