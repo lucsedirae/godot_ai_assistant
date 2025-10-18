@@ -283,4 +283,4 @@ self.llm = ChatOpenAI(model="gpt-4-turbo-preview", temperature=0)
 
 ## License
 
-This project is provided as-is for educational purposes.
+This project is subject to the terms of the GNU Public License 3.0 as described in LICENSE.md 
