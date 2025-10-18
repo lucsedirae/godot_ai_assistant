@@ -13,7 +13,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
-RUN mkdir -p /app/src /app/data /app/godot_docs
+RUN mkdir -p /app/src /app/data app/data/lore /app/godot_docs
 
 # Copy application code
 COPY . .
