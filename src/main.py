@@ -45,16 +45,6 @@ def main():
         assistant.setup_qa_chain()
         
         display_manager.print_welcome_message()
-        # print("\n" + "="*80)
-        # print("Assistant ready! Ask me anything about Godot development or your game lore.")
-        # print("\nSpecial Commands:")
-        # print("  /project info      - Show your project details")
-        # print("  /project structure - Show project file tree")
-        # print("  /read <file>       - Read a file from your project")
-        # print("  /list [pattern]    - List files (e.g., /list *.gd)")
-        # print("  /lore              - Show lore files status")
-        # print("  quit or exit       - Exit the assistant")
-        # print("="*80 + "\n")
         
         # Interactive loop
         while True:
@@ -71,10 +61,11 @@ def main():
                 assistant.ask(question)
                 
             except KeyboardInterrupt:
-                print("\n\nGoodbye!")
+                display_manager.print_goodbye_message()
+                # print("\n\nGoodbye!")
                 break
             except Exception as e:
-                print(f"\nError: {e}")
+                display_manager.print_error(e)
                 continue
     
     except Exception as e:
