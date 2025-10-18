@@ -107,6 +107,7 @@ class GodotAIAssistant:
         self.api_provider = api_provider
         self.embedding_provider = embedding_provider
         self.docs_path = Path("/app/godot_docs")
+        self.lore_path = Path("/app/data/lore")  # NEW: Lore directory
         self.db_path = Path("/app/data/chroma_db")
         self.project_path = Path(os.getenv("GODOT_PROJECT_PATH", "/app/project"))
         self.vectorstore = None
@@ -148,55 +149,98 @@ class GodotAIAssistant:
             )
             print(f"Loaded {self.vectorstore._collection.count()} documents")
         else:
-            print("Creating new vector database from Godot documentation...")
+            print("Creating new vector database from Godot documentation and lore...")
             self.ingest_documents()
     
+    def load_lore_documents(self):
+        """NEW: Load lore documents from the lore directory"""
+        if not self.lore_path.exists():
+            print(f"⚠ Lore directory not found: {self.lore_path}")
+            return []
+        
+        print(f"Loading lore documents from {self.lore_path}...")
+        
+        # Try to load various text file types
+        all_docs = []
+        patterns = ["**/*.txt", "**/*.md", "**/*.rst"]
+        
+        for pattern in patterns:
+            try:
+                loader = DirectoryLoader(
+                    str(self.lore_path),
+                    glob=pattern,
+                    loader_cls=TextLoader,
+                    loader_kwargs={'autodetect_encoding': True}
+                )
+                docs = loader.load()
+                all_docs.extend(docs)
+                if docs:
+                    print(f"  Loaded {len(docs)} {pattern} files")
+            except Exception as e:
+                print(f"  Warning loading {pattern}: {e}")
+        
+        if all_docs:
+            print(f"✓ Total lore documents loaded: {len(all_docs)}")
+            # Add metadata to identify lore documents
+            for doc in all_docs:
+                doc.metadata['source_type'] = 'lore'
+        else:
+            print("⚠ No lore documents found")
+        
+        return all_docs
+    
     def ingest_documents(self):
-        """Load and process Godot documentation into vector database"""
+        """Load and process Godot documentation AND lore into vector database"""
+        all_documents = []
+        
+        # Load Godot documentation
         if not self.docs_path.exists():
             print(f"Documentation path {self.docs_path} not found!")
             print("Please add Godot documentation to the godot_docs directory.")
             print("\nYou can:")
             print("1. Clone Godot docs: git clone https://github.com/godotengine/godot-docs.git godot_docs")
             print("2. Or manually add .rst, .md, or .txt files to godot_docs/")
-            sys.exit(1)
-        
-        # Load documents
-        print("Loading documents...")
-        loader = DirectoryLoader(
-            str(self.docs_path),
-            glob="**/*.rst",  # Godot docs are in reStructuredText
-            loader_cls=TextLoader,
-            loader_kwargs={'autodetect_encoding': True}
-        )
-        
-        try:
-            documents = loader.load()
-        except Exception as e:
-            print(f"Error loading documents: {e}")
-            print("Trying alternative file types...")
+        else:
+            print("Loading Godot documentation...")
             loader = DirectoryLoader(
                 str(self.docs_path),
-                glob="**/*.{md,txt}",
+                glob="**/*.rst",  # Godot docs are in reStructuredText
                 loader_cls=TextLoader,
                 loader_kwargs={'autodetect_encoding': True}
             )
-            documents = loader.load()
+            
+            try:
+                documents = loader.load()
+                # Mark as documentation
+                for doc in documents:
+                    doc.metadata['source_type'] = 'documentation'
+                all_documents.extend(documents)
+                print(f"✓ Loaded {len(documents)} documentation files")
+            except Exception as e:
+                print(f"Error loading documentation: {e}")
         
-        if not documents:
-            print("No documents found! Please add Godot documentation.")
-            sys.exit(1)
+        # NEW: Load lore documents
+        lore_documents = self.load_lore_documents()
+        all_documents.extend(lore_documents)
         
-        print(f"Loaded {len(documents)} documents")
+        if not all_documents:
+            print("⚠ No documents found! The assistant will have limited capabilities.")
+            print("Add documentation to godot_docs/ and/or lore to data/lore/")
+            # Don't exit, allow assistant to work with just prompts
+            return
+        
+        print(f"\nTotal documents to process: {len(all_documents)}")
+        print(f"  - Documentation: {len([d for d in all_documents if d.metadata.get('source_type') == 'documentation'])}")
+        print(f"  - Lore: {len([d for d in all_documents if d.metadata.get('source_type') == 'lore'])}")
         
         # Split documents
-        print("Splitting documents into chunks...")
+        print("\nSplitting documents into chunks...")
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
             length_function=len
         )
-        texts = text_splitter.split_documents(documents)
+        texts = text_splitter.split_documents(all_documents)
         print(f"Created {len(texts)} chunks")
         
         # Create vectorstore
@@ -206,33 +250,38 @@ class GodotAIAssistant:
             embedding=self.embeddings,
             persist_directory=str(self.db_path)
         )
-        print("Vector database created successfully!")
+        print("✓ Vector database created successfully!")
     
     def setup_qa_chain(self):
         """Setup the RAG question-answering chain"""
         if not self.vectorstore:
             raise ValueError("Vectorstore not initialized. Call load_or_create_vectorstore first.")
         
-        # Create custom prompt template with project awareness
-        template = """You are an expert Godot game engine assistant with access to both the official Godot documentation and the user's actual project files.
+        # NEW: Enhanced prompt template with lore awareness
+        template = """You are an expert Godot game engine assistant with access to:
+1. Official Godot documentation
+2. Game/project lore and world-building documents
+3. The user's actual project files
 
 IMPORTANT CAPABILITIES:
-1. You can read files from the user's project by asking them to share specific file paths
-2. You can see the project structure when provided
-3. You should provide advice tailored to their specific project when relevant
+- You can read files from the user's project by asking them to share specific file paths
+- You can see the project structure when provided
+- You have access to lore documents that describe the game's world, characters, story, and setting
+- You should provide advice tailored to their specific project when relevant
 
-Use the following pieces of context from the Godot documentation to answer the question at the end.
+When answering questions about lore, story, characters, or world-building:
+- Use the lore documents provided in the context
+- Be specific and reference details from the lore
+- Help maintain consistency with established lore
 
-If you don't know the answer based on the context provided, just say that you don't know - don't try to make up an answer.
+When answering technical Godot questions:
+- Use the Godot documentation in the context
+- Provide specific code examples using GDScript syntax
+- Reference best practices
 
-Always provide specific code examples when relevant, using GDScript syntax.
+If you don't know the answer based on the context provided, just say that you don't know - don't make up information.
 
-When the user asks about their project, you can:
-- Ask them to describe what files they have
-- Suggest they share relevant code snippets
-- Provide targeted advice based on their project structure
-
-Context from Godot documentation:
+Context (may include documentation and/or lore):
 {context}
 
 Question: {question}
@@ -244,11 +293,11 @@ Helpful Answer:"""
             input_variables=["context", "question"]
         )
         
-        # Create retrieval chain
+        # Create retrieval chain with increased k for better lore coverage
         self.qa_chain = RetrievalQA.from_chain_type(
             llm=self.llm,
             chain_type="stuff",
-            retriever=self.vectorstore.as_retriever(search_kwargs={"k": 4}),
+            retriever=self.vectorstore.as_retriever(search_kwargs={"k": 6}),  # Increased from 4
             chain_type_kwargs={"prompt": QA_PROMPT},
             return_source_documents=True
         )
@@ -273,6 +322,10 @@ Helpful Answer:"""
             pattern = question[5:].strip() or "*.gd"
             return self.handle_list_files(pattern)
         
+        # NEW: Check for lore-related commands
+        if question.lower().startswith("/lore"):
+            return self.handle_lore_command()
+        
         print(f"\nQuestion: {question}")
         print("Thinking...\n")
         
@@ -284,7 +337,16 @@ Helpful Answer:"""
         print("Answer:")
         print(answer)
         print("\n" + "="*80)
-        print(f"Sources: {len(sources)} relevant document chunks retrieved")
+        
+        # NEW: Show source types
+        doc_sources = [s for s in sources if s.metadata.get('source_type') == 'documentation']
+        lore_sources = [s for s in sources if s.metadata.get('source_type') == 'lore']
+        
+        print(f"Sources: {len(sources)} relevant chunks retrieved")
+        if doc_sources:
+            print(f"  - {len(doc_sources)} from documentation")
+        if lore_sources:
+            print(f"  - {len(lore_sources)} from lore")
         print("="*80)
         
         return answer
@@ -307,6 +369,36 @@ Helpful Answer:"""
             print("  /project structure - Show project file structure")
             print("  /read <file>       - Read a specific file")
             print("  /list [pattern]    - List files (default: *.gd)")
+            print("  /lore              - Show lore files status")
+        return ""
+    
+    def handle_lore_command(self):
+        """NEW: Handle lore-related commands"""
+        print("\nLore Status:")
+        print("="*80)
+        
+        if not self.lore_path.exists():
+            print(f"❌ Lore directory not found: {self.lore_path}")
+            print("Create the directory and add .txt, .md, or .rst files")
+        else:
+            print(f"✓ Lore directory: {self.lore_path}")
+            
+            # Count lore files
+            lore_files = []
+            for pattern in ["*.txt", "*.md", "*.rst"]:
+                lore_files.extend(list(self.lore_path.rglob(pattern)))
+            
+            if lore_files:
+                print(f"✓ Found {len(lore_files)} lore files:")
+                for f in lore_files:
+                    rel_path = f.relative_to(self.lore_path)
+                    size = f.stat().st_size
+                    print(f"  - {rel_path} ({size:,} bytes)")
+            else:
+                print("⚠ No lore files found")
+                print("Add .txt, .md, or .rst files to the lore directory")
+        
+        print("="*80)
         return ""
     
     def handle_read_file(self, file_path):
@@ -375,12 +467,13 @@ def main():
         assistant.setup_qa_chain()
         
         print("\n" + "="*80)
-        print("Assistant ready! Ask me anything about Godot development.")
+        print("Assistant ready! Ask me anything about Godot development or your game lore.")
         print("\nSpecial Commands:")
         print("  /project info      - Show your project details")
         print("  /project structure - Show project file tree")
         print("  /read <file>       - Read a file from your project")
         print("  /list [pattern]    - List files (e.g., /list *.gd)")
+        print("  /lore              - Show lore files status")
         print("  quit or exit       - Exit the assistant")
         print("="*80 + "\n")
         

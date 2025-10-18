@@ -4,7 +4,12 @@ An AI-powered assistant specialized in Godot game engine development, using RAG 
 
 ## Features
 
-- **RAG-based responses**: Answers are grounded in official Godot documentation
+- **RAG-based responses**: Answers are grounded in localized documentation and reference documents
+  - Godot official documentation
+    - Allows for version specificity
+  - Lore context
+    - A RAG workflow for incorporating project-specific lore data to assist in creative thinking
+    - Supports .md, .txt, .rst
 - **Multiple API support**: Works with both Claude (Anthropic) and ChatGPT (OpenAI)
 - **Vector database**: Uses ChromaDB for efficient document retrieval
 - **Docker-based**: Easy setup and consistent environment
