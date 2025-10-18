@@ -1,0 +1,11 @@
+# Environment
+.env
+*.env
+*.env.local
+*.env.staging
+
+# Docs files
+/godot_docs
+
+# Data dir (created on build)
+/data
