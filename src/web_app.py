@@ -25,6 +25,7 @@ display_manager = ConsoleOutputManager(CONSOLE_LANG)
 # Global assistant instance (initialized on first request)
 assistant = None
 project_analyzer = None
+last_read_file = None  # Track the last file that was read
 
 def get_assistant():
     """Lazy initialization of the assistant"""
@@ -88,9 +89,24 @@ def ask_question():
             return handle_list_files(question)
         elif question.lower().startswith('/lore'):
             return handle_lore_command()
+        elif question.lower() == '/clear':
+            return handle_clear_context()
         
         # Regular question
-        answer = asst.ask(question)
+        enhanced_question = question
+        
+        # If a file was recently read, include it in the context
+        if last_read_file:
+            enhanced_question = f"""I previously read the file: {last_read_file['path']}
+
+Here is the content of that file:
+```
+{last_read_file['content'][:4000]}
+```
+
+Now, my question is: {question}"""
+        
+        answer = asst.ask(enhanced_question)
         
         return jsonify({
             'answer': answer,
@@ -133,17 +149,26 @@ def handle_project_command(command):
 
 def handle_read_file(command):
     """Handle file reading command"""
+    global last_read_file
+    
     asst = get_assistant()
     file_path = command[6:].strip()
     
     content = asst.project_analyzer.read_file(file_path)
     
     if content is None:
+        last_read_file = None
         return jsonify({
             'answer': f"❌ File not found: {file_path}\nTip: Use /list to see available files",
             'question': command,
             'type': 'error'
         })
+    
+    # Store the file content for context
+    last_read_file = {
+        'path': file_path,
+        'content': content
+    }
     
     # Limit display for web
     display_content = content[:3000]
@@ -151,7 +176,7 @@ def handle_read_file(command):
         display_content += f"\n\n... (showing first 3000 chars of {len(content)} total)"
     
     return jsonify({
-        'answer': f"<pre>📄 Contents of {file_path}:\n{'='*80}\n{display_content}\n{'='*80}</pre>",
+        'answer': f"<pre>📄 Contents of {file_path}:\n{'='*80}\n{display_content}\n{'='*80}\n\nFile loaded! You can now ask questions about this file.</pre>",
         'question': command,
         'type': 'file_content'
     })
@@ -214,6 +239,25 @@ def handle_lore_command():
         'question': '/lore',
         'type': 'lore_status'
     })
+
+def handle_clear_context():
+    """Clear the last read file context"""
+    global last_read_file
+    
+    if last_read_file:
+        file_path = last_read_file['path']
+        last_read_file = None
+        return jsonify({
+            'answer': f"✓ Cleared file context for: {file_path}",
+            'question': '/clear',
+            'type': 'success'
+        })
+    else:
+        return jsonify({
+            'answer': "No file context to clear.",
+            'question': '/clear',
+            'type': 'info'
+        })
 
 @app.route('/api/status')
 def get_status():
