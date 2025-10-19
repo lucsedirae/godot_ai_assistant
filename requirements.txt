@@ -11,3 +11,7 @@ lxml==5.1.0
 sentence-transformers==2.7.0
 torch==2.3.0
 transformers==4.40.0
+
+# Web app dependencies
+Flask==3.0.0
+Flask-CORS==4.0.0
