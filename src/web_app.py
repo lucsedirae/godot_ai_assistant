@@ -11,7 +11,8 @@ load_dotenv()
 
 # Initialize Flask app with explicit template folder
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
-app = Flask(__name__, template_folder=template_dir)
+static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
+app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
 # Constants
 CONSOLE_LANG = "en"
