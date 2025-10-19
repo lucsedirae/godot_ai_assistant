@@ -11,7 +11,7 @@ from langchain.prompts import PromptTemplate
 
 
 class GodotAIAssistant:
-    def __init__(self, project_analyzer, api_provider="anthropic", embedding_provider="local"):
+    def __init__(self, project_analyzer, display_manager, api_provider="anthropic", embedding_provider="local"):
         """
         Initialize the Godot AI Assistant
         
@@ -22,6 +22,7 @@ class GodotAIAssistant:
         """
         self.api_provider = api_provider
         self.embedding_provider = embedding_provider
+        self.display_manager = display_manager
         self.docs_path = Path("/app/godot_docs")
         self.lore_path = Path("/app/data/lore")
         self.db_path = Path("/app/data/chroma_db")
@@ -110,11 +111,7 @@ class GodotAIAssistant:
         
         # Load Godot documentation
         if not self.docs_path.exists():
-            print(f"Documentation path {self.docs_path} not found!")
-            print("Please add Godot documentation to the godot_docs directory.")
-            print("\nYou can:")
-            print("1. Clone Godot docs: git clone https://github.com/godotengine/godot-docs.git godot_docs")
-            print("2. Or manually add .rst, .md, or .txt files to godot_docs/")
+            self.display_manager.print_error_doc_missing(self.docs_path)
         else:
             print("Loading Godot documentation...")
             loader = DirectoryLoader(
