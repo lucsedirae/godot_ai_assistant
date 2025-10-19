@@ -1,0 +1,325 @@
+# tests/test_godot_assistant.py
+"""
+Unit tests for GodotAIAssistant with dependency injection.
+Run with: pytest tests/test_godot_assistant.py -v
+"""
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+
+
+class TestGodotAIAssistantInit:
+	"""Tests for GodotAIAssistant initialization"""
+	
+	def test_initialization_with_dependencies(self, assistant_with_mocks):
+		"""Test that assistant initializes with injected dependencies"""
+		assert assistant_with_mocks.project_analyzer is not None
+		assert assistant_with_mocks.display_manager is not None
+		assert assistant_with_mocks.config is not None
+		assert assistant_with_mocks.embeddings is not None
+		assert assistant_with_mocks.llm is not None
+		assert assistant_with_mocks.command_parser is not None
+	
+	def test_initial_state(self, assistant_with_mocks):
+		"""Test that assistant starts with correct initial state"""
+		assert assistant_with_mocks.vectorstore is None
+		assert assistant_with_mocks.qa_chain is None
+		assert assistant_with_mocks.last_read_file is None
+
+
+class TestLoadOrCreateVectorstore:
+	"""Tests for vectorstore loading/creation"""
+	
+	@patch('godot_assistant.Chroma')
+	def test_load_existing_vectorstore(
+		self,
+		mock_chroma_class,
+		assistant_with_mocks,
+		tmp_path
+	):
+		"""Test loading an existing vectorstore"""
+		# Setup
+		db_path = tmp_path / "db"
+		db_path.mkdir()
+		(db_path / "test.txt").write_text("test")  # Make directory non-empty
+		
+		assistant_with_mocks.config.paths.db_path = db_path
+		
+		mock_vectorstore = Mock()
+		mock_vectorstore._collection.count.return_value = 42
+		mock_chroma_class.return_value = mock_vectorstore
+		
+		# Execute
+		assistant_with_mocks.load_or_create_vectorstore()
+		
+		# Verify
+		assert assistant_with_mocks.vectorstore is not None
+		mock_chroma_class.assert_called_once()
+	
+	@patch('godot_assistant.Chroma')
+	def test_create_new_vectorstore(
+		self,
+		mock_chroma_class,
+		assistant_with_mocks,
+		tmp_path
+	):
+		"""Test creating a new vectorstore when none exists"""
+		# Setup - empty directory
+		db_path = tmp_path / "db"
+		db_path.mkdir()
+		
+		assistant_with_mocks.config.paths.db_path = db_path
+		
+		# Mock the ingest_documents method
+		assistant_with_mocks.ingest_documents = Mock()
+		
+		# Execute
+		assistant_with_mocks.load_or_create_vectorstore()
+		
+		# Verify ingest was called
+		assistant_with_mocks.ingest_documents.assert_called_once()
+
+
+class TestLoadLoreDocuments:
+	"""Tests for lore document loading"""
+	
+	def test_load_lore_nonexistent_directory(self, assistant_with_mocks, tmp_path):
+		"""Test loading lore when directory doesn't exist"""
+		assistant_with_mocks.config.paths.lore_path = tmp_path / "nonexistent"
+		
+		docs = assistant_with_mocks.load_lore_documents()
+		
+		assert docs == []
+	
+	def test_load_lore_empty_directory(self, assistant_with_mocks, tmp_path):
+		"""Test loading lore from empty directory"""
+		lore_path = tmp_path / "lore"
+		lore_path.mkdir()
+		
+		assistant_with_mocks.config.paths.lore_path = lore_path
+		
+		docs = assistant_with_mocks.load_lore_documents()
+		
+		assert docs == []
+	
+	@patch('godot_assistant.DirectoryLoader')
+	def test_load_lore_with_files(
+		self,
+		mock_loader_class,
+		assistant_with_mocks,
+		tmp_path
+	):
+		"""Test loading lore files successfully"""
+		lore_path = tmp_path / "lore"
+		lore_path.mkdir()
+		(lore_path / "story.txt").write_text("story content")
+		
+		assistant_with_mocks.config.paths.lore_path = lore_path
+		
+		# Setup mock loader
+		mock_loader = Mock()
+		mock_doc = Mock()
+		mock_doc.metadata = {}
+		mock_loader.load.return_value = [mock_doc]
+		mock_loader_class.return_value = mock_loader
+		
+		# Execute
+		docs = assistant_with_mocks.load_lore_documents()
+		
+		# Verify
+		assert len(docs) > 0
+		assert docs[0].metadata.get('source_type') == 'lore'
+
+
+class TestSetupQAChain:
+	"""Tests for QA chain setup"""
+	
+	@patch('godot_assistant.RetrievalQA')
+	@patch('godot_assistant.PromptTemplate')
+	def test_setup_qa_chain_success(
+		self,
+		mock_prompt_class,
+		mock_retrieval_class,
+		assistant_with_mocks
+	):
+		"""Test successful QA chain setup"""
+		# Setup mock vectorstore
+		mock_vectorstore = Mock()
+		mock_retriever = Mock()
+		mock_vectorstore.as_retriever.return_value = mock_retriever
+		assistant_with_mocks.vectorstore = mock_vectorstore
+		
+		mock_chain = Mock()
+		mock_retrieval_class.from_chain_type.return_value = mock_chain
+		
+		# Execute
+		assistant_with_mocks.setup_qa_chain()
+		
+		# Verify
+		assert assistant_with_mocks.qa_chain is not None
+		mock_retrieval_class.from_chain_type.assert_called_once()
+	
+	def test_setup_qa_chain_without_vectorstore(self, assistant_with_mocks):
+		"""Test that setup fails without vectorstore"""
+		assistant_with_mocks.vectorstore = None
+		
+		with pytest.raises(ValueError) as exc_info:
+			assistant_with_mocks.setup_qa_chain()
+		
+		assert "Vectorstore not initialized" in str(exc_info.value)
+
+
+class TestAskMethod:
+	"""Tests for the ask() method"""
+	
+	def test_ask_without_qa_chain(self, assistant_with_mocks):
+		"""Test that ask fails without QA chain"""
+		assistant_with_mocks.qa_chain = None
+		
+		with pytest.raises(ValueError) as exc_info:
+			assistant_with_mocks.ask("test question")
+		
+		assert "QA chain not initialized" in str(exc_info.value)
+	
+	def test_ask_with_command(self, assistant_with_mocks):
+		"""Test asking a command"""
+		from commands import ProjectInfoCommand
+		
+		# Setup
+		assistant_with_mocks.qa_chain = Mock()
+		mock_command = ProjectInfoCommand()
+		assistant_with_mocks.command_parser.parse = Mock(return_value=mock_command)
+		assistant_with_mocks._execute_command = Mock(return_value="Command result")
+		
+		# Execute
+		result = assistant_with_mocks.ask("/project info")
+		
+		# Verify command was executed
+		assistant_with_mocks._execute_command.assert_called_once()
+	
+	def test_ask_regular_question(self, assistant_with_mocks):
+		"""Test asking a regular question"""
+		# Setup
+		assistant_with_mocks.qa_chain = Mock()
+		assistant_with_mocks.qa_chain.invoke = Mock(return_value={
+			'result': 'Test answer',
+			'source_documents': []
+		})
+		assistant_with_mocks.command_parser.parse = Mock(return_value=None)
+		assistant_with_mocks._process_query = Mock(return_value="Test answer")
+		
+		# Execute
+		result = assistant_with_mocks.ask("What is a Node2D?")
+		
+		# Verify
+		assistant_with_mocks._process_query.assert_called_once_with("What is a Node2D?")
+
+
+class TestEnhanceQuestionWithContext:
+	"""Tests for context enhancement"""
+	
+	def test_enhance_without_context(self, assistant_with_mocks):
+		"""Test enhancement when no file context exists"""
+		assistant_with_mocks.last_read_file = None
+		
+		question = "What is a Node2D?"
+		enhanced = assistant_with_mocks._enhance_question_with_context(question)
+		
+		assert enhanced == question
+	
+	def test_enhance_with_context(self, assistant_with_mocks):
+		"""Test enhancement with file context"""
+		assistant_with_mocks.last_read_file = {
+			'path': 'player.gd',
+			'content': 'extends CharacterBody2D'
+		}
+		
+		question = "How can I improve this code?"
+		enhanced = assistant_with_mocks._enhance_question_with_context(question)
+		
+		assert 'player.gd' in enhanced
+		assert 'extends CharacterBody2D' in enhanced
+		assert question in enhanced
+
+
+class TestExecuteCommand:
+	"""Tests for command execution"""
+	
+	def test_execute_command(self, assistant_with_mocks):
+		"""Test command execution"""
+		from commands import ProjectInfoCommand, CommandContext
+		
+		command = ProjectInfoCommand()
+		
+		# Mock the command execution
+		with patch.object(command, 'execute', return_value="<pre>Test Info</pre>"):
+			result = assistant_with_mocks._execute_command(command)
+		
+		# Command execution prints result and returns empty string
+		assert result == ""
+
+
+class TestPrintSourceInfo:
+	"""Tests for source information printing"""
+	
+	def test_print_source_info_mixed(self, assistant_with_mocks, capsys):
+		"""Test printing source info with mixed sources"""
+		mock_doc_source = Mock()
+		mock_doc_source.metadata = {'source_type': 'documentation'}
+		
+		mock_lore_source = Mock()
+		mock_lore_source.metadata = {'source_type': 'lore'}
+		
+		sources = [mock_doc_source, mock_lore_source]
+		
+		assistant_with_mocks._print_source_info(sources)
+		
+		captured = capsys.readouterr()
+		assert '2 relevant chunks' in captured.out
+		assert '1 from documentation' in captured.out
+		assert '1 from lore' in captured.out
+	
+	def test_print_source_info_with_file_context(
+		self,
+		assistant_with_mocks,
+		capsys
+	):
+		"""Test printing source info when file context exists"""
+		assistant_with_mocks.last_read_file = {
+			'path': 'player.gd',
+			'content': 'test'
+		}
+		
+		assistant_with_mocks._print_source_info([])
+		
+		captured = capsys.readouterr()
+		assert 'player.gd' in captured.out
+
+
+class TestProcessQuery:
+	"""Tests for query processing"""
+	
+	def test_process_query(self, assistant_with_mocks, capsys):
+		"""Test processing a regular query"""
+		# Setup
+		mock_qa_chain = Mock()
+		mock_qa_chain.invoke = Mock(return_value={
+			'result': 'Test answer',
+			'source_documents': []
+		})
+		assistant_with_mocks.qa_chain = mock_qa_chain
+		
+		# Execute
+		result = assistant_with_mocks._process_query("Test question")
+		
+		# Verify
+		assert result == 'Test answer'
+		mock_qa_chain.invoke.assert_called_once()
+		
+		captured = capsys.readouterr()
+		assert 'Test question' in captured.out
+		assert 'Test answer' in captured.out
+
+
+if __name__ == "__main__":
+	pytest.main([__file__, "-v"])

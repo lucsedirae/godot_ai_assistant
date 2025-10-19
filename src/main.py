@@ -2,15 +2,14 @@
 """
 Console entry point for Godot AI Development Assistant.
 Provides interactive CLI for querying the assistant.
+
+Refactored to use dependency injection for better testability and modularity.
 """
 import sys
-from config import load_config
-from project_analyzer import ProjectAnalyzer
-from godot_assistant import GodotAIAssistant
-from console_output import ConsoleOutputManager
+from di_container import get_container, reset_container
 
 
-def initialize_chat(assistant: GodotAIAssistant, display_manager: ConsoleOutputManager) -> None:
+def initialize_chat(assistant, display_manager) -> None:
 	"""
 	Initialize and run the interactive chat loop.
 
@@ -45,30 +44,23 @@ def initialize_chat(assistant: GodotAIAssistant, display_manager: ConsoleOutputM
 def main() -> None:
 	"""Main entry point for the console application."""
 	try:
-		# Load and validate configuration
-		config = load_config()
+		# Get the DI container (initializes all dependencies)
+		container = get_container()
 		
-		# Initialize display manager
-		display_manager = ConsoleOutputManager(config.language)
+		# Retrieve dependencies from container
+		config = container.get('config')
+		display_manager = container.get('output_manager')
+		project_analyzer = container.get('project_analyzer')
+		assistant = container.get('assistant')
+		
+		# Display startup information
 		display_manager.print_title()
-		
-		# Print configuration summary
 		config.print_summary()
-
-		# Initialize project analyzer
-		project_analyzer = ProjectAnalyzer(config.paths.project_path)
 		display_manager.print_project_status(project_analyzer)
-
-		# Initialize assistant with configuration
-		assistant = GodotAIAssistant(
-			project_analyzer=project_analyzer,
-			display_manager=display_manager,
-			config=config
-		)
-
-		# Load or create vector database
+		
+		# Initialize vector database
 		assistant.load_or_create_vectorstore()
-
+		
 		# Setup QA chain
 		assistant.setup_qa_chain()
 		
@@ -79,9 +71,16 @@ def main() -> None:
 		print(f"❌ Configuration error: {e}")
 		print("\nPlease check your .env file and ensure all required settings are present.")
 		sys.exit(1)
+	except KeyError as e:
+		print(f"❌ Dependency injection error: {e}")
+		print("\nPlease check that all dependencies are properly registered.")
+		sys.exit(1)
 	except Exception as e:
 		print(f"❌ Fatal error: {e}")
 		sys.exit(1)
+	finally:
+		# Cleanup
+		reset_container()
 
 
 if __name__ == "__main__":

@@ -2,77 +2,51 @@
 """
 Web interface for Godot AI Development Assistant.
 Provides HTTP API endpoints for chat functionality.
+
+Refactored to use dependency injection for better testability and modularity.
 """
 import os
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 
-from config import load_config, AppConfig
-from project_analyzer import ProjectAnalyzer
-from godot_assistant import GodotAIAssistant
-from console_output import ConsoleOutputManager
-from commands import CommandParser, CommandContext, CommandError
+from di_container import get_container
+from commands import CommandContext, CommandError
 
 # Initialize Flask app with explicit template folder
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
 static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
 
-# Global instances (initialized on first request)
-assistant: GodotAIAssistant | None = None
-project_analyzer: ProjectAnalyzer | None = None
-display_manager: ConsoleOutputManager | None = None
-config: AppConfig | None = None
-command_parser: CommandParser | None = None
+# Global container (initialized on first request)
+container = None
 
 
-def get_assistant() -> GodotAIAssistant:
+def get_or_create_container():
 	"""
-	Lazy initialization of the assistant and dependencies.
+	Get or create the DI container.
+	
+	Lazy initialization on first request.
 	
 	Returns:
-		Initialized GodotAIAssistant instance
-		
-	Raises:
-		ValueError: If configuration is invalid
+		The global DIContainer instance
 	"""
-	global assistant, project_analyzer, display_manager, config, command_parser
-	
-	if assistant is None:
-		# Load configuration
-		config = load_config()
-		config.print_summary()
-		
-		# Initialize display manager
-		display_manager = ConsoleOutputManager(config.language)
-		
-		# Initialize project analyzer
-		project_analyzer = ProjectAnalyzer(config.paths.project_path)
-		
-		# Initialize command parser
-		command_parser = CommandParser()
+	global container
+	if container is None:
+		container = get_container()
 		
 		# Initialize assistant
-		assistant = GodotAIAssistant(
-			project_analyzer=project_analyzer,
-			display_manager=display_manager,
-			config=config
-		)
-		
-		# Load or create vector database
+		assistant = container.get('assistant')
 		assistant.load_or_create_vectorstore()
-		
-		# Setup QA chain
 		assistant.setup_qa_chain()
 		
 		print("✓ Assistant initialized successfully")
 	
-	return assistant
+	return container
 
 
 @app.route('/')
 def index():
-	"""Render the main chat interface"""
+	"""Render the main chat interface."""
 	return render_template('index.html')
 
 
@@ -85,6 +59,13 @@ def ask_question():
 		JSON response with answer or error
 	"""
 	try:
+		# Get container and dependencies
+		container = get_or_create_container()
+		assistant = container.get('assistant')
+		project_analyzer = container.get('project_analyzer')
+		display_manager = container.get('output_manager')
+		command_parser = container.get('command_parser')
+		
 		# Accept both JSON and form data
 		if request.is_json:
 			data = request.get_json()
@@ -95,8 +76,6 @@ def ask_question():
 		if not question:
 			return jsonify({'error': 'Question cannot be empty'}), 400
 		
-		asst = get_assistant()
-		
 		# Try to parse and execute as command
 		try:
 			command = command_parser.parse(question)
@@ -104,23 +83,12 @@ def ask_question():
 				context = CommandContext(
 					project_analyzer=project_analyzer,
 					display_manager=display_manager,
-					assistant=asst
+					assistant=assistant
 				)
 				result = command.execute(context)
 				
 				# Determine command type from result
-				if 'error' in result.lower() or '❌' in result:
-					cmd_type = 'error'
-				elif 'file' in result.lower() and 'loaded' in result.lower():
-					cmd_type = 'file_content'
-				elif 'files matching' in result.lower():
-					cmd_type = 'file_list'
-				elif 'project' in result.lower():
-					cmd_type = 'project_info'
-				elif 'lore' in result.lower():
-					cmd_type = 'lore_status'
-				else:
-					cmd_type = 'success'
+				cmd_type = _classify_command_result(result)
 				
 				return jsonify({
 					'answer': result,
@@ -134,22 +102,11 @@ def ask_question():
 				'type': 'error'
 			})
 		
-		# Not a command - process as regular question with context
-		enhanced_question = question
-		
-		# If a file was recently read, include it in the context
-		if asst.last_read_file:
-			enhanced_question = f"""I previously read the file: {asst.last_read_file['path']}
-
-Here is the content of that file:
-```
-{asst.last_read_file['content'][:4000]}
-```
-
-Now, my question is: {question}"""
+		# Not a command - process as regular question
+		enhanced_question = _enhance_with_context(question, assistant)
 		
 		# Query the assistant
-		result = asst.qa_chain.invoke({"query": enhanced_question})
+		result = assistant.qa_chain.invoke({"query": enhanced_question})
 		answer = result['result']
 		
 		return jsonify({
@@ -170,13 +127,16 @@ def get_status():
 		JSON response with system status or error
 	"""
 	try:
-		asst = get_assistant()
+		container = get_or_create_container()
+		config = container.get('config')
+		assistant = container.get('assistant')
+		
 		return jsonify({
 			'status': 'ready',
 			'api_provider': config.api.provider,
 			'embedding_provider': config.embedding.provider,
 			'model': config.get_model_name(),
-			'project_info': asst.project_analyzer.get_project_info()
+			'project_info': assistant.project_analyzer.get_project_info()
 		})
 	except Exception as e:
 		return jsonify({
@@ -185,18 +145,73 @@ def get_status():
 		}), 500
 
 
+def _classify_command_result(result: str) -> str:
+	"""
+	Classify command result for appropriate frontend handling.
+	
+	Args:
+		result: Command execution result string
+		
+	Returns:
+		Classification type string
+	"""
+	result_lower = result.lower()
+	
+	if 'error' in result_lower or '❌' in result:
+		return 'error'
+	elif 'file' in result_lower and 'loaded' in result_lower:
+		return 'file_content'
+	elif 'files matching' in result_lower:
+		return 'file_list'
+	elif 'project' in result_lower:
+		return 'project_info'
+	elif 'lore' in result_lower:
+		return 'lore_status'
+	else:
+		return 'success'
+
+
+def _enhance_with_context(question: str, assistant) -> str:
+	"""
+	Enhance question with file context if available.
+	
+	Args:
+		question: Original question
+		assistant: Assistant instance
+		
+	Returns:
+		Enhanced question with file context
+	"""
+	if not assistant.last_read_file:
+		return question
+	
+	return f"""I previously read the file: {assistant.last_read_file['path']}
+
+Here is the content of that file:
+```
+{assistant.last_read_file['content'][:4000]}
+```
+
+Now, my question is: {question}"""
+
+
 if __name__ == '__main__':
 	try:
-		# Load config to get web settings
-		web_config = load_config()
+		# Get container and configuration
+		container = get_or_create_container()
+		config = container.get('config')
 		
 		# Run Flask app with configured settings
 		app.run(
-			host=web_config.web.host,
-			port=web_config.web.port,
-			debug=web_config.web.debug
+			host=config.web.host,
+			port=config.web.port,
+			debug=config.web.debug
 		)
 	except ValueError as e:
 		print(f"❌ Configuration error: {e}")
 		print("\nPlease check your .env file and ensure all required settings are present.")
+		exit(1)
+	except KeyError as e:
+		print(f"❌ Dependency injection error: {e}")
+		print("\nPlease check that all dependencies are properly registered.")
 		exit(1)

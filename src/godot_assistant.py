@@ -2,85 +2,58 @@
 """
 Core AI assistant for Godot development.
 Handles RAG pipeline, document ingestion, and query processing.
+
+Refactored to use dependency injection for better testability and modularity.
 """
 from pathlib import Path
+from typing import Optional, Any
+
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 
 from config import AppConfig
 from commands import CommandParser, CommandContext, CommandError
 
+
 class GodotAIAssistant:
 	"""AI assistant specialized in Godot game engine development"""
 	
-	def __init__(self, project_analyzer, display_manager, config: AppConfig):
+	def __init__(
+		self,
+		project_analyzer: Any,
+		display_manager: Any,
+		config: AppConfig,
+		embeddings: Any,
+		llm: Any,
+		command_parser: CommandParser
+	):
 		"""
-		Initialize the Godot AI Assistant
+		Initialize the Godot AI Assistant with injected dependencies.
 		
 		Args:
 			project_analyzer: ProjectAnalyzer instance for handling project files
 			display_manager: ConsoleOutputManager for output formatting
 			config: Application configuration
+			embeddings: Initialized embeddings instance (OpenAI or HuggingFace)
+			llm: Initialized LLM instance (Anthropic or OpenAI)
+			command_parser: CommandParser for handling special commands
 		"""
 		self.project_analyzer = project_analyzer
 		self.display_manager = display_manager
 		self.config = config
-		self.vectorstore = None
-		self.qa_chain = None
-		self.last_read_file = None  # Track last read file for context
-		self.command_parser = CommandParser()
+		self.embeddings = embeddings
+		self.llm = llm
+		self.command_parser = command_parser
 		
-		# Initialize embeddings based on configuration
-		self.embeddings = self._initialize_embeddings()
-		
-		# Initialize LLM based on configuration
-		self.llm = self._initialize_llm()
+		self.vectorstore: Optional[Any] = None
+		self.qa_chain: Optional[RetrievalQA] = None
+		self.last_read_file: Optional[dict] = None
 	
-	def _initialize_embeddings(self):
-		"""
-		Initialize embedding model based on configuration.
-		
-		Returns:
-			Initialized embeddings instance
-		"""
-		if self.config.embedding.provider == "local":
-			print("Using local embeddings (free, no API key needed)")
-			return HuggingFaceEmbeddings(
-				model_name="all-MiniLM-L6-v2",
-				model_kwargs={'device': 'cpu'}
-			)
-		else:
-			print("Using OpenAI embeddings")
-			return OpenAIEmbeddings(openai_api_key=self.config.api.openai_key)
-	
-	def _initialize_llm(self):
-		"""
-		Initialize LLM based on configuration.
-		
-		Returns:
-			Initialized LLM instance
-		"""
-		if self.config.api.provider == "anthropic":
-			return ChatAnthropic(
-				model=self.config.llm.anthropic_model,
-				temperature=self.config.llm.temperature,
-				anthropic_api_key=self.config.api.anthropic_key
-			)
-		else:
-			return ChatOpenAI(
-				model=self.config.llm.openai_model,
-				temperature=self.config.llm.temperature,
-				openai_api_key=self.config.api.openai_key
-			)
-	
-	def load_or_create_vectorstore(self):
-		"""Load existing vectorstore or create new one from documents"""
+	def load_or_create_vectorstore(self) -> None:
+		"""Load existing vectorstore or create new one from documents."""
 		if self.config.paths.db_path.exists() and list(self.config.paths.db_path.iterdir()):
 			print("Loading existing vector database...")
 			self.vectorstore = Chroma(
@@ -92,7 +65,7 @@ class GodotAIAssistant:
 			print("Creating new vector database from Godot documentation and lore...")
 			self.ingest_documents()
 	
-	def load_lore_documents(self):
+	def load_lore_documents(self) -> list:
 		"""
 		Load lore documents from the lore directory.
 		
@@ -125,7 +98,6 @@ class GodotAIAssistant:
 		
 		if all_docs:
 			print(f"✓ Total lore documents loaded: {len(all_docs)}")
-			# Add metadata to identify lore documents
 			for doc in all_docs:
 				doc.metadata['source_type'] = 'lore'
 		else:
@@ -133,8 +105,8 @@ class GodotAIAssistant:
 		
 		return all_docs
 	
-	def ingest_documents(self):
-		"""Load and process Godot documentation AND lore into vector database"""
+	def ingest_documents(self) -> None:
+		"""Load and process Godot documentation AND lore into vector database."""
 		all_documents = []
 		
 		# Load Godot documentation
@@ -144,14 +116,13 @@ class GodotAIAssistant:
 			print("Loading Godot documentation...")
 			loader = DirectoryLoader(
 				str(self.config.paths.docs_path),
-				glob="**/*.rst",  # Godot docs are in reStructuredText
+				glob="**/*.rst",
 				loader_cls=TextLoader,
 				loader_kwargs={'autodetect_encoding': True}
 			)
 			
 			try:
 				documents = loader.load()
-				# Mark as documentation
 				for doc in documents:
 					doc.metadata['source_type'] = 'documentation'
 				all_documents.extend(documents)
@@ -191,8 +162,8 @@ class GodotAIAssistant:
 		)
 		print("✓ Vector database created successfully!")
 	
-	def setup_qa_chain(self):
-		"""Setup the RAG question-answering chain"""
+	def setup_qa_chain(self) -> None:
+		"""Setup the RAG question-answering chain."""
 		if not self.vectorstore:
 			raise ValueError("Vectorstore not initialized. Call load_or_create_vectorstore first.")
 		
@@ -231,7 +202,6 @@ Helpful Answer:"""
 			input_variables=["context", "question"]
 		)
 		
-		# Create retrieval chain with configured k value
 		self.qa_chain = RetrievalQA.from_chain_type(
 			llm=self.llm,
 			chain_type="stuff",
@@ -262,33 +232,46 @@ Helpful Answer:"""
 		try:
 			command = self.command_parser.parse(question)
 			if command:
-				# Execute command
-				context = CommandContext(
-					project_analyzer=self.project_analyzer,
-					display_manager=self.display_manager,
-					assistant=self
-				)
-				result = command.execute(context)
-				# Remove HTML tags for console output
-				result = result.replace('<pre>', '').replace('</pre>', '')
-				print(result)
-				return ""
+				result = self._execute_command(command)
+				return result
 		except CommandError as e:
 			print(f"\n❌ Command error: {e}")
 			return ""
 		
 		# Not a command - process as regular question
-		# Enhance question with file context if available
-		enhanced_question = question
-		if self.last_read_file:
-			enhanced_question = f"""I previously read the file: {self.last_read_file['path']}
-
-Here is the content of that file:
-```
-{self.last_read_file['content'][:4000]}
-```
-
-Now, my question is: {question}"""
+		return self._process_query(question)
+	
+	def _execute_command(self, command) -> str:
+		"""
+		Execute a parsed command.
+		
+		Args:
+			command: Parsed Command object
+			
+		Returns:
+			Command execution result
+		"""
+		context = CommandContext(
+			project_analyzer=self.project_analyzer,
+			display_manager=self.display_manager,
+			assistant=self
+		)
+		result = command.execute(context)
+		result = result.replace('<pre>', '').replace('</pre>', '')
+		print(result)
+		return ""
+	
+	def _process_query(self, question: str) -> str:
+		"""
+		Process a regular question (not a command).
+		
+		Args:
+			question: User's question
+			
+		Returns:
+			Assistant's answer
+		"""
+		enhanced_question = self._enhance_question_with_context(question)
 		
 		print(f"\nQuestion: {question}")
 		print("Thinking...\n")
@@ -302,7 +285,39 @@ Now, my question is: {question}"""
 		print(answer)
 		print("\n" + "="*80)
 		
-		# Show source types
+		self._print_source_info(sources)
+		
+		return answer
+	
+	def _enhance_question_with_context(self, question: str) -> str:
+		"""
+		Enhance question with file context if available.
+		
+		Args:
+			question: Original question
+			
+		Returns:
+			Enhanced question with file context
+		"""
+		if not self.last_read_file:
+			return question
+		
+		return f"""I previously read the file: {self.last_read_file['path']}
+
+Here is the content of that file:
+```
+{self.last_read_file['content'][:4000]}
+```
+
+Now, my question is: {question}"""
+	
+	def _print_source_info(self, sources: list) -> None:
+		"""
+		Print information about retrieved sources.
+		
+		Args:
+			sources: List of source documents
+		"""
 		doc_sources = [s for s in sources if s.metadata.get('source_type') == 'documentation']
 		lore_sources = [s for s in sources if s.metadata.get('source_type') == 'lore']
 		
@@ -314,5 +329,3 @@ Now, my question is: {question}"""
 		if self.last_read_file:
 			print(f"  - Context: {self.last_read_file['path']}")
 		print("="*80)
-		
-		return answer
