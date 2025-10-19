@@ -1,12 +1,17 @@
 services:
+  # Web interface (default)
   godot-ai-assistant:
     build: .
-    container_name: godot-ai-assistant
+    container_name: godot-ai-assistant-web
+    ports:
+      - "5000:5000"
     volumes:
       - ./src:/app/src
+      - ./templates:/app/templates
+      - ./static:/app/static
       - ./data:/app/data
       - ./godot_docs:/app/godot_docs
-      - ${GODOT_PROJECT_PATH:-./my_godot_project}:/app/project:ro  # Mount your project (read-only)
+      - ${GODOT_PROJECT_PATH:-./my_godot_project}:/app/project:ro
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -14,7 +19,26 @@ services:
       - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-local}
       - API_PROVIDER=${API_PROVIDER:-anthropic}
       - GODOT_PROJECT_PATH=/app/project
+    restart: unless-stopped
+
+  # Console interface (optional)
+  godot-ai-assistant-console:
+    build: .
+    container_name: godot-ai-assistant-console
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./godot_docs:/app/godot_docs
+      - ${GODOT_PROJECT_PATH:-./my_godot_project}:/app/project:ro
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PYTHONUNBUFFERED=1
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-local}
+      - API_PROVIDER=${API_PROVIDER:-anthropic}
+      - GODOT_PROJECT_PATH=/app/project
+    command: python src/main.py
     stdin_open: true
     tty: true
     profiles:
-      - interactive
+      - console

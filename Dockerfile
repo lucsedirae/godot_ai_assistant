@@ -13,9 +13,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
-RUN mkdir -p /app/src /app/data app/data/lore /app/godot_docs
+RUN mkdir -p /app/src /app/data /app/data/lore /app/godot_docs /app/templates /app/static
 
 # Copy application code
 COPY . .
 
-CMD ["python", "src/main.py"]
+# Expose port for web interface
+EXPOSE 5000
+
+# Run web server by default
+CMD ["python", "src/web_app.py"]

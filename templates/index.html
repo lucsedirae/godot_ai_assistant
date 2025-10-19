@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Godot AI Development Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 Godot AI Development Assistant</h1>
+            <p>Ask questions about Godot, your project, or game lore</p>
+        </div>
+
+        <div class="status-bar" id="status-bar">
+            Loading system status...
+        </div>
+
+        <div class="chat-container" id="chat-container">
+            <div class="welcome-message">
+                <h2>Welcome! 👋</h2>
+                <p>I'm here to help with Godot development, your project files, and game lore.</p>
+                <div class="command-list">
+                    <strong>Special Commands:</strong><br><br>
+                    <code>/project info</code> - Show project details<br>
+                    <code>/project structure</code> - Show file tree<br>
+                    <code>/read &lt;file&gt;</code> - Read a project file<br>
+                    <code>/list [pattern]</code> - List files (e.g., /list *.gd)<br>
+                    <code>/lore</code> - Show lore files status<br>
+                    <code>/clear</code> - Clear loaded file context
+                </div>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <form class="input-form" 
+                  hx-post="/api/ask" 
+                  hx-swap="none"
+                  hx-indicator="#loading-indicator">
+                <input type="text" 
+                       id="question-input" 
+                       name="question" 
+                       placeholder="Ask a question or use a command like /project info..."
+                       autocomplete="off"
+                       required>
+                <button type="submit" class="submit-btn">Send</button>
+            </form>
+            <div class="commands-hint">
+                Try: <code>/project info</code> • <code>/list *.gd</code> • <code>/read &lt;file&gt;</code> then ask about it • <code>/clear</code>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load status on page load
+        fetch('/api/status')
+            .then(res => res.json())
+            .then(data => {
+                const statusBar = document.getElementById('status-bar');
+                if (data.status === 'ready') {
+                    statusBar.innerHTML = `✓ Ready | API: ${data.api_provider} | Embeddings: ${data.embedding_provider}`;
+                } else {
+                    statusBar.innerHTML = `❌ Error: ${data.error}`;
+                }
+            });
+
+        // Handle form submission with HTMX
+        document.body.addEventListener('htmx:beforeRequest', function(evt) {
+            const form = evt.detail.elt;
+            const input = form.querySelector('#question-input');
+            const question = input.value.trim();
+            
+            if (!question) {
+                evt.preventDefault();
+                return;
+            }
+
+            // Add user message immediately
+            const chatContainer = document.getElementById('chat-container');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user';
+            userMsg.innerHTML = `<div class="message-content">${escapeHtml(question)}</div>`;
+            chatContainer.appendChild(userMsg);
+
+            // Add loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loading-indicator';
+            loadingDiv.className = 'message assistant loading';
+            loadingDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="spinner"></div>
+                    <div>Thinking...</div>
+                </div>
+            `;
+            chatContainer.appendChild(loadingDiv);
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Clear input
+            input.value = '';
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            // Remove loading indicator
+            const loading = document.getElementById('loading-indicator');
+            if (loading) {
+                loading.remove();
+            }
+
+            if (evt.detail.successful) {
+                const response = JSON.parse(evt.detail.xhr.responseText);
+                
+                // Add assistant response
+                const chatContainer = document.getElementById('chat-container');
+                const assistantMsg = document.createElement('div');
+                assistantMsg.className = 'message assistant';
+                
+                // Check if response contains pre-formatted content (commands)
+                let contentHtml;
+                if (response.answer.startsWith('<pre>')) {
+                    // Already formatted HTML from commands - use as-is
+                    contentHtml = response.answer;
+                } else {
+                    // Parse markdown for regular responses
+                    contentHtml = marked.parse(response.answer);
+                }
+                
+                assistantMsg.innerHTML = `<div class="message-content">${contentHtml}</div>`;
+                chatContainer.appendChild(assistantMsg);
+                
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else {
+                const chatContainer = document.getElementById('chat-container');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'message assistant';
+                errorMsg.innerHTML = `<div class="message-content" style="color: #dc3545;">Error: ${evt.detail.xhr.responseText || 'Request failed'}</div>`;
+                chatContainer.appendChild(errorMsg);
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Focus input on page load
+        document.getElementById('question-input').focus();
+    </script>
+</body>
+</html>
