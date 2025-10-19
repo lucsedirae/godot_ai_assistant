@@ -14,7 +14,7 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 
 from config import AppConfig
-
+from commands import CommandParser, CommandContext, CommandError
 
 class GodotAIAssistant:
 	"""AI assistant specialized in Godot game engine development"""
@@ -34,6 +34,7 @@ class GodotAIAssistant:
 		self.vectorstore = None
 		self.qa_chain = None
 		self.last_read_file = None  # Track last read file for context
+		self.command_parser = CommandParser()
 		
 		# Initialize embeddings based on configuration
 		self.embeddings = self._initialize_embeddings()
@@ -257,24 +258,26 @@ Helpful Answer:"""
 		if not self.qa_chain:
 			raise ValueError("QA chain not initialized. Call setup_qa_chain first.")
 		
-		# Handle special commands
-		if question.lower().startswith("/project"):
-			return self.handle_project_command(question)
+		# Try to parse as a command
+		try:
+			command = self.command_parser.parse(question)
+			if command:
+				# Execute command
+				context = CommandContext(
+					project_analyzer=self.project_analyzer,
+					display_manager=self.display_manager,
+					assistant=self
+				)
+				result = command.execute(context)
+				# Remove HTML tags for console output
+				result = result.replace('<pre>', '').replace('</pre>', '')
+				print(result)
+				return ""
+		except CommandError as e:
+			print(f"\n❌ Command error: {e}")
+			return ""
 		
-		if question.lower().startswith("/read "):
-			file_path = question[6:].strip()
-			return self.handle_read_file(file_path)
-		
-		if question.lower().startswith("/list"):
-			pattern = question[5:].strip() or "*.gd"
-			return self.handle_list_files(pattern)
-		
-		if question.lower().startswith("/lore"):
-			return self.handle_lore_command()
-		
-		if question.lower() == "/clear":
-			return self.handle_clear_context()
-		
+		# Not a command - process as regular question
 		# Enhance question with file context if available
 		enhanced_question = question
 		if self.last_read_file:
@@ -313,125 +316,3 @@ Now, my question is: {question}"""
 		print("="*80)
 		
 		return answer
-	
-	def handle_project_command(self, command: str) -> str:
-		"""
-		Handle project-related commands.
-		
-		Args:
-			command: The project command string
-			
-		Returns:
-			Empty string (output handled by display manager)
-		"""
-		if "info" in command.lower():
-			self.display_manager.print_info(self.project_analyzer)
-		elif "structure" in command.lower():
-			self.display_manager.print_structure(self.project_analyzer)
-		else:
-			self.display_manager.print_commands()
-		return ""
-	
-	def handle_lore_command(self) -> str:
-		"""
-		Handle lore-related commands.
-		
-		Returns:
-			Empty string (output handled by print statements)
-		"""
-		print("\nLore Status:")
-		print("="*80)
-		
-		if not self.config.paths.lore_path.exists():
-			print(f"❌ Lore directory not found: {self.config.paths.lore_path}")
-			print("Create the directory and add .txt, .md, or .rst files")
-		else:
-			print(f"✓ Lore directory: {self.config.paths.lore_path}")
-			
-			# Count lore files
-			lore_files = []
-			for pattern in ["*.txt", "*.md", "*.rst"]:
-				lore_files.extend(list(self.config.paths.lore_path.rglob(pattern)))
-			
-			if lore_files:
-				print(f"✓ Found {len(lore_files)} lore files:")
-				for f in lore_files:
-					rel_path = f.relative_to(self.config.paths.lore_path)
-					size = f.stat().st_size
-					print(f"  - {rel_path} ({size:,} bytes)")
-			else:
-				print("⚠ No lore files found")
-				print("Add .txt, .md, or .rst files to the lore directory")
-		
-		print("="*80)
-		return ""
-	
-	def handle_clear_context(self) -> str:
-		"""
-		Clear the last read file context.
-		
-		Returns:
-			Empty string (output handled by print statements)
-		"""
-		if self.last_read_file:
-			file_path = self.last_read_file['path']
-			self.last_read_file = None
-			print(f"\n✓ Cleared file context for: {file_path}")
-		else:
-			print("\nNo file context to clear.")
-		return ""
-	
-	def handle_read_file(self, file_path: str) -> str:
-		"""
-		Read and display a project file.
-		
-		Args:
-			file_path: Relative path to the file
-			
-		Returns:
-			Empty string (output handled by print statements)
-		"""
-		content = self.project_analyzer.read_file(file_path)
-		if content is None:
-			self.last_read_file = None
-			print(f"\n❌ File not found: {file_path}")
-			print("Tip: Use /list to see available files")
-		else:
-			# Store file content for context in future questions
-			self.last_read_file = {
-				'path': file_path,
-				'content': content
-			}
-			
-			print(f"\n📄 Contents of {file_path}:")
-			print("="*80)
-			print(content[:2000])  # Limit display
-			if len(content) > 2000:
-				print(f"\n... (showing first 2000 chars of {len(content)} total)")
-			print("="*80)
-			print("\n✓ File loaded into context! You can now ask questions about this file.")
-			print("Use /clear to remove file context.")
-		return ""
-	
-	def handle_list_files(self, pattern: str) -> str:
-		"""
-		List files in the project matching a pattern.
-		
-		Args:
-			pattern: File pattern to match (e.g., "*.gd")
-			
-		Returns:
-			Empty string (output handled by print statements)
-		"""
-		files = self.project_analyzer.find_files(pattern)
-		if not files:
-			print(f"\n❌ No files found matching: {pattern}")
-		else:
-			print(f"\n📁 Files matching '{pattern}':")
-			print("="*80)
-			for f in files[:50]:
-				print(f"  {f}")
-			if len(files) > 50:
-				print(f"\n... and {len(files) - 50} more")
-			print("="*80)
-		return ""

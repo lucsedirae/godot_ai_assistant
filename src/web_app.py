@@ -11,6 +11,7 @@ from config import load_config, AppConfig
 from project_analyzer import ProjectAnalyzer
 from godot_assistant import GodotAIAssistant
 from console_output import ConsoleOutputManager
+from commands import CommandParser, CommandContext, CommandError
 
 # Initialize Flask app with explicit template folder
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates')
@@ -22,7 +23,7 @@ assistant: GodotAIAssistant | None = None
 project_analyzer: ProjectAnalyzer | None = None
 display_manager: ConsoleOutputManager | None = None
 config: AppConfig | None = None
-last_read_file: dict | None = None  # Track the last file that was read
+command_parser: CommandParser | None = None
 
 
 def get_assistant() -> GodotAIAssistant:
@@ -35,7 +36,7 @@ def get_assistant() -> GodotAIAssistant:
 	Raises:
 		ValueError: If configuration is invalid
 	"""
-	global assistant, project_analyzer, display_manager, config
+	global assistant, project_analyzer, display_manager, config, command_parser
 	
 	if assistant is None:
 		# Load configuration
@@ -47,6 +48,9 @@ def get_assistant() -> GodotAIAssistant:
 		
 		# Initialize project analyzer
 		project_analyzer = ProjectAnalyzer(config.paths.project_path)
+		
+		# Initialize command parser
+		command_parser = CommandParser()
 		
 		# Initialize assistant
 		assistant = GodotAIAssistant(
@@ -93,33 +97,60 @@ def ask_question():
 		
 		asst = get_assistant()
 		
-		# Handle special commands
-		if question.lower().startswith('/project'):
-			return handle_project_command(question)
-		elif question.lower().startswith('/read '):
-			return handle_read_file(question)
-		elif question.lower().startswith('/list'):
-			return handle_list_files(question)
-		elif question.lower().startswith('/lore'):
-			return handle_lore_command()
-		elif question.lower() == '/clear':
-			return handle_clear_context()
+		# Try to parse and execute as command
+		try:
+			command = command_parser.parse(question)
+			if command:
+				context = CommandContext(
+					project_analyzer=project_analyzer,
+					display_manager=display_manager,
+					assistant=asst
+				)
+				result = command.execute(context)
+				
+				# Determine command type from result
+				if 'error' in result.lower() or '❌' in result:
+					cmd_type = 'error'
+				elif 'file' in result.lower() and 'loaded' in result.lower():
+					cmd_type = 'file_content'
+				elif 'files matching' in result.lower():
+					cmd_type = 'file_list'
+				elif 'project' in result.lower():
+					cmd_type = 'project_info'
+				elif 'lore' in result.lower():
+					cmd_type = 'lore_status'
+				else:
+					cmd_type = 'success'
+				
+				return jsonify({
+					'answer': result,
+					'question': question,
+					'type': cmd_type
+				})
+		except CommandError as e:
+			return jsonify({
+				'answer': f"❌ {str(e)}\nTip: Use /list to see available files",
+				'question': question,
+				'type': 'error'
+			})
 		
-		# Regular question with context
+		# Not a command - process as regular question with context
 		enhanced_question = question
 		
 		# If a file was recently read, include it in the context
-		if last_read_file:
-			enhanced_question = f"""I previously read the file: {last_read_file['path']}
+		if asst.last_read_file:
+			enhanced_question = f"""I previously read the file: {asst.last_read_file['path']}
 
 Here is the content of that file:
 ```
-{last_read_file['content'][:4000]}
+{asst.last_read_file['content'][:4000]}
 ```
 
 Now, my question is: {question}"""
 		
-		answer = asst.ask(enhanced_question)
+		# Query the assistant
+		result = asst.qa_chain.invoke({"query": enhanced_question})
+		answer = result['result']
 		
 		return jsonify({
 			'answer': answer,
@@ -128,155 +159,6 @@ Now, my question is: {question}"""
 	
 	except Exception as e:
 		return jsonify({'error': str(e)}), 500
-
-
-def handle_project_command(command: str):
-	"""Handle project-related commands"""
-	asst = get_assistant()
-	
-	if "info" in command.lower():
-		info = asst.project_analyzer.get_project_info()
-		return jsonify({
-			'answer': f"<pre>{info}</pre>",
-			'question': command,
-			'type': 'project_info'
-		})
-	elif "structure" in command.lower():
-		structure = asst.project_analyzer.get_project_structure()
-		return jsonify({
-			'answer': f"<pre>{structure}</pre>",
-			'question': command,
-			'type': 'project_structure'
-		})
-	else:
-		commands = """Available project commands:
-- /project info      - Show project information
-- /project structure - Show project file structure
-- /read <file>       - Read a specific file
-- /list [pattern]    - List files (default: *.gd)
-- /lore              - Show lore files status
-- /clear             - Clear loaded file context"""
-		return jsonify({
-			'answer': f"<pre>{commands}</pre>",
-			'question': command,
-			'type': 'help'
-		})
-
-
-def handle_read_file(command: str):
-	"""Handle file reading command"""
-	global last_read_file
-	
-	asst = get_assistant()
-	file_path = command[6:].strip()
-	
-	content = asst.project_analyzer.read_file(file_path)
-	
-	if content is None:
-		last_read_file = None
-		return jsonify({
-			'answer': f"❌ File not found: {file_path}\nTip: Use /list to see available files",
-			'question': command,
-			'type': 'error'
-		})
-	
-	# Store the file content for context
-	last_read_file = {
-		'path': file_path,
-		'content': content
-	}
-	
-	# Limit display for web
-	display_content = content[:3000]
-	if len(content) > 3000:
-		display_content += f"\n\n... (showing first 3000 chars of {len(content)} total)"
-	
-	return jsonify({
-		'answer': f"<pre>📄 Contents of {file_path}:\n{'='*80}\n{display_content}\n{'='*80}\n\nFile loaded! You can now ask questions about this file.</pre>",
-		'question': command,
-		'type': 'file_content'
-	})
-
-
-def handle_list_files(command: str):
-	"""Handle file listing command"""
-	asst = get_assistant()
-	pattern = command[5:].strip() or "*.gd"
-	
-	files = asst.project_analyzer.find_files(pattern)
-	
-	if not files:
-		return jsonify({
-			'answer': f"❌ No files found matching: {pattern}",
-			'question': command,
-			'type': 'error'
-		})
-	
-	file_list = "\n".join([f"  {f}" for f in files[:50]])
-	if len(files) > 50:
-		file_list += f"\n\n... and {len(files) - 50} more"
-	
-	return jsonify({
-		'answer': f"<pre>📁 Files matching '{pattern}':\n{'='*80}\n{file_list}\n{'='*80}</pre>",
-		'question': command,
-		'type': 'file_list'
-	})
-
-
-def handle_lore_command():
-	"""Handle lore status command"""
-	asst = get_assistant()
-	lore_path = config.paths.lore_path
-	
-	result = ["Lore Status:", "="*80]
-	
-	if not lore_path.exists():
-		result.append(f"❌ Lore directory not found: {lore_path}")
-		result.append("Create the directory and add .txt, .md, or .rst files")
-	else:
-		result.append(f"✓ Lore directory: {lore_path}")
-		
-		lore_files = []
-		for pattern in ["*.txt", "*.md", "*.rst"]:
-			lore_files.extend(list(lore_path.rglob(pattern)))
-		
-		if lore_files:
-			result.append(f"✓ Found {len(lore_files)} lore files:")
-			for f in lore_files:
-				rel_path = f.relative_to(lore_path)
-				size = f.stat().st_size
-				result.append(f"  - {rel_path} ({size:,} bytes)")
-		else:
-			result.append("⚠ No lore files found")
-			result.append("Add .txt, .md, or .rst files to the lore directory")
-	
-	result.append("="*80)
-	
-	return jsonify({
-		'answer': f"<pre>{chr(10).join(result)}</pre>",
-		'question': '/lore',
-		'type': 'lore_status'
-	})
-
-
-def handle_clear_context():
-	"""Clear the last read file context"""
-	global last_read_file
-	
-	if last_read_file:
-		file_path = last_read_file['path']
-		last_read_file = None
-		return jsonify({
-			'answer': f"✓ Cleared file context for: {file_path}",
-			'question': '/clear',
-			'type': 'success'
-		})
-	else:
-		return jsonify({
-			'answer': "No file context to clear.",
-			'question': '/clear',
-			'type': 'info'
-		})
 
 
 @app.route('/api/status')
