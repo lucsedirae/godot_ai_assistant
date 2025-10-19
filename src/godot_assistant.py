@@ -1,3 +1,4 @@
+# src/godot_assistant.py
 import os
 from pathlib import Path
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -9,7 +10,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 
-
 class GodotAIAssistant:
     def __init__(self, project_analyzer, display_manager, api_provider="anthropic", embedding_provider="local"):
         """
@@ -20,6 +20,7 @@ class GodotAIAssistant:
             api_provider: "anthropic" or "openai"
             embedding_provider: "local" (free) or "openai" (requires API key)
         """
+        self.project_analyzer = project_analyzer
         self.api_provider = api_provider
         self.embedding_provider = embedding_provider
         self.display_manager = display_manager
@@ -28,9 +29,6 @@ class GodotAIAssistant:
         self.db_path = Path("/app/data/chroma_db")
         self.vectorstore = None
         self.qa_chain = None
-        
-        # Store injected project analyzer
-        self.project_analyzer = project_analyzer
         
         # Initialize embeddings
         if embedding_provider == "local":
@@ -264,22 +262,11 @@ Helpful Answer:"""
     def handle_project_command(self, command):
         """Handle project-related commands"""
         if "info" in command.lower():
-            print("\nProject Information:")
-            print("="*80)
-            print(self.project_analyzer.get_project_info())
-            print("\n" + "="*80)
+            self.display_manager.print_info(self.project_analyzer)
         elif "structure" in command.lower():
-            print("\nProject Structure:")
-            print("="*80)
-            print(self.project_analyzer.get_project_structure())
-            print("\n" + "="*80)
+            self.display_manager.print_structure(self.project_analyzer)
         else:
-            print("\nProject Commands:")
-            print("  /project info      - Show project information")
-            print("  /project structure - Show project file structure")
-            print("  /read <file>       - Read a specific file")
-            print("  /list [pattern]    - List files (default: *.gd)")
-            print("  /lore              - Show lore files status")
+            self.display_manager.print_commands()
         return ""
     
     def handle_lore_command(self):

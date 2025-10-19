@@ -1,6 +1,6 @@
+# src/project_analyzer.py
 import os
 from pathlib import Path
-
 
 class ProjectAnalyzer:
     """Analyzes and provides context about the user's Godot project"""

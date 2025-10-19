@@ -1,3 +1,4 @@
+# src/console_output.py
 import os
 from data_loader import DataLoader
 from project_analyzer import ProjectAnalyzer
@@ -33,6 +34,14 @@ class ConsoleOutputManager:
         loader = DataLoader("src/output/data/" + self.lang + ".json")
         return loader.get(string_name)
 
+    def print_commands(self) -> None:
+        print("\nProject Commands:")
+        print("  /project info      - Show project information")
+        print("  /project structure - Show project file structure")
+        print("  /read <file>       - Read a specific file")
+        print("  /list [pattern]    - List files (default: *.gd)")
+        print("  /lore              - Show lore files status")
+
     def print_config(self, config: dict) -> None:
         """
         Print the current API and embedding provider configuration.
@@ -66,6 +75,19 @@ class ConsoleOutputManager:
     def print_goodbye_message(self) -> None:
         """Print a goodbye message when the user exits the application."""
         print(f"{COLOR_OK}\n\nGoodbye!{COLOR_END}")
+        
+    def print_info(self, analyzer: ProjectAnalyzer) -> None:
+        """
+        Print basic project information.
+
+        Args:
+            analyzer: ProjectAnalyzer instance containing project information
+        """
+        print("\n" + "=" * 80)
+        print(COLOR_OK + "Project Information:" + COLOR_END)
+        print("=" * 80)
+        print(analyzer.get_project_info())
+        print("=" * 80)
 
     def print_project_status(self, analyzer: ProjectAnalyzer) -> None:
         """
@@ -80,6 +102,12 @@ class ConsoleOutputManager:
         print(analyzer.get_project_info())
         print("=" * 80)
 
+    def print_structure(self, analyzer: ProjectAnalyzer) -> None:
+        print("\nProject Structure:")
+        print("="*80)
+        print(analyzer.get_project_structure())
+        print("\n" + "="*80)
+  
     def print_title(self) -> None:
         """Print the application title with colored formatting."""
         print("=" * 80)
