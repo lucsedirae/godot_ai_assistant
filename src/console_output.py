@@ -9,67 +9,67 @@ COLOR_ERROR = "\033[96m"  # Cyan
 
 
 class ConsoleOutputManager:
-	"""Manages console output and formatting for the Godot AI Development Assistant."""
+    """Manages console output and formatting for the Godot AI Development Assistant."""
 
-	def __init__(self, lang: str) -> None:
-		"""
-		Initialize the ConsoleOutputManager with a language.
+    def __init__(self, lang: str) -> None:
+        """
+        Initialize the ConsoleOutputManager with a language.
 
-		Args:
-			lang: Language code for loading localized strings
-		"""
-		self.lang = lang
+        Args:
+                lang: Language code for loading localized strings
+        """
+        self.lang = lang
 
-	def get_string(self, string_name: str) -> str | None:
-		"""
-		Load a localized string from the language JSON file.
+    def get_string(self, string_name: str) -> str | None:
+        """
+        Load a localized string from the language JSON file.
 
-		Args:
-			string_name: The key of the string to retrieve
+        Args:
+                string_name: The key of the string to retrieve
 
-		Returns:
-			The localized string value, or None if not found
-		"""
-		loader = DataLoader("src/output/data/" + self.lang + ".json")
-		return loader.get(string_name)
+        Returns:
+                The localized string value, or None if not found
+        """
+        loader = DataLoader("src/output/data/" + self.lang + ".json")
+        return loader.get(string_name)
 
-	def print_commands(self) -> None:
-		"""Print available project commands"""
-		print("\nProject Commands:")
-		print("  /project info      - Show project information")
-		print("  /project structure - Show project file structure")
-		print("  /read <file>       - Read a specific file (loads into context)")
-		print("  /list [pattern]    - List files (default: *.gd)")
-		print("  /lore              - Show lore files status")
-		print("  /clear             - Clear loaded file context")
+    def print_commands(self) -> None:
+        """Print available project commands"""
+        print("\nProject Commands:")
+        print("  /project info      - Show project information")
+        print("  /project structure - Show project file structure")
+        print("  /read <file>       - Read a specific file (loads into context)")
+        print("  /list [pattern]    - List files (default: *.gd)")
+        print("  /lore              - Show lore files status")
+        print("  /clear             - Clear loaded file context")
 
-	def print_config(self, config: dict) -> None:
-		"""
-		Print the current API and embedding provider configuration.
+    def print_config(self, config: dict) -> None:
+        """
+        Print the current API and embedding provider configuration.
 
-		Args:
-			config: Dictionary containing 'api_provider' and 'embedding_provider' keys
-		"""
-		print(f"\nUsing {config['api_provider'].upper()} API")
-		print(f"Using {config['embedding_provider'].upper()} embeddings")
+        Args:
+                config: Dictionary containing 'api_provider' and 'embedding_provider' keys
+        """
+        print(f"\nUsing {config['api_provider'].upper()} API")
+        print(f"Using {config['embedding_provider'].upper()} embeddings")
 
-	def print_error(self, error: Exception) -> None:
-		"""
-		Print an error message in colored text.
+    def print_error(self, error: Exception) -> None:
+        """
+        Print an error message in colored text.
 
-		Args:
-			error: The exception to display
-		"""
-		print(f"{COLOR_ERROR}\nError: {error}{COLOR_END}")
+        Args:
+                error: The exception to display
+        """
+        print(f"{COLOR_ERROR}\nError: {error}{COLOR_END}")
 
-	def print_error_doc_missing(self, docs_path: str) -> None:
-		"""
-		Print error message when documentation is missing.
-		
-		Args:
-			docs_path: Path where documentation should be located
-		"""
-		help_message = f"""
+    def print_error_doc_missing(self, docs_path: str) -> None:
+        """
+        Print error message when documentation is missing.
+
+        Args:
+                docs_path: Path where documentation should be located
+        """
+        help_message = f"""
 Documentation path {docs_path} not found!
 Please add Godot documentation to the godot_docs directory.
 
@@ -77,63 +77,63 @@ You can:
 1. Clone Godot docs: git clone https://github.com/godotengine/godot-docs.git godot_docs
 2. Or manually add .rst, .md, or .txt files to godot_docs/
 		"""
-		print(help_message)
+        print(help_message)
 
-	def print_goodbye_message(self) -> None:
-		"""Print a goodbye message when the user exits the application."""
-		print(f"{COLOR_OK}\n\nGoodbye!{COLOR_END}")
-		
-	def print_info(self, analyzer: ProjectAnalyzer) -> None:
-		"""
-		Print basic project information.
+    def print_goodbye_message(self) -> None:
+        """Print a goodbye message when the user exits the application."""
+        print(f"{COLOR_OK}\n\nGoodbye!{COLOR_END}")
 
-		Args:
-			analyzer: ProjectAnalyzer instance containing project information
-		"""
-		print("\n" + "=" * 80)
-		print(COLOR_OK + "Project Information:" + COLOR_END)
-		print("=" * 80)
-		print(analyzer.get_project_info())
-		print("=" * 80)
+    def print_info(self, analyzer: ProjectAnalyzer) -> None:
+        """
+        Print basic project information.
 
-	def print_project_status(self, analyzer: ProjectAnalyzer) -> None:
-		"""
-		Print detailed project status information.
+        Args:
+                analyzer: ProjectAnalyzer instance containing project information
+        """
+        print("\n" + "=" * 80)
+        print(COLOR_OK + "Project Information:" + COLOR_END)
+        print("=" * 80)
+        print(analyzer.get_project_info())
+        print("=" * 80)
 
-		Args:
-			analyzer: ProjectAnalyzer instance containing project information
-		"""
-		print("\n" + "=" * 80)
-		print(COLOR_OK + "Project Status:" + COLOR_END)
-		print("=" * 80)
-		print(analyzer.get_project_info())
-		print("=" * 80)
+    def print_project_status(self, analyzer: ProjectAnalyzer) -> None:
+        """
+        Print detailed project status information.
 
-	def print_structure(self, analyzer: ProjectAnalyzer) -> None:
-		"""
-		Print project structure tree.
-		
-		Args:
-			analyzer: ProjectAnalyzer instance containing project information
-		"""
-		print("\nProject Structure:")
-		print("="*80)
-		print(analyzer.get_project_structure())
-		print("\n" + "="*80)
-	
-	def print_title(self) -> None:
-		"""Print the application title with colored formatting."""
-		print("=" * 80)
-		print(COLOR_OK)
-		print(self.get_string("app_title"))
-		print(COLOR_END)
-		print("=" * 80)
+        Args:
+                analyzer: ProjectAnalyzer instance containing project information
+        """
+        print("\n" + "=" * 80)
+        print(COLOR_OK + "Project Status:" + COLOR_END)
+        print("=" * 80)
+        print(analyzer.get_project_info())
+        print("=" * 80)
 
-	def print_welcome_message(self) -> None:
-		"""Clear the screen and display the welcome message with available commands."""
-		os.system("clear")
-		separator = "=" * 80
-		welcome_text = f"""
+    def print_structure(self, analyzer: ProjectAnalyzer) -> None:
+        """
+        Print project structure tree.
+
+        Args:
+                analyzer: ProjectAnalyzer instance containing project information
+        """
+        print("\nProject Structure:")
+        print("=" * 80)
+        print(analyzer.get_project_structure())
+        print("\n" + "=" * 80)
+
+    def print_title(self) -> None:
+        """Print the application title with colored formatting."""
+        print("=" * 80)
+        print(COLOR_OK)
+        print(self.get_string("app_title"))
+        print(COLOR_END)
+        print("=" * 80)
+
+    def print_welcome_message(self) -> None:
+        """Clear the screen and display the welcome message with available commands."""
+        os.system("clear")
+        separator = "=" * 80
+        welcome_text = f"""
 {separator}
 {COLOR_OK}Assistant ready! Ask me anything about Godot development or your game lore.{COLOR_END}
 
@@ -147,4 +147,4 @@ Special Commands:
   quit or exit       - Exit the assistant
 {separator}
 		"""
-		print(welcome_text)
+        print(welcome_text)
