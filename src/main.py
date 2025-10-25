@@ -21,7 +21,8 @@ def initialize_chat(assistant, display_manager) -> None:
 
     while True:
         try:
-            prompt = display_manager.get_string("your_question")
+            # prompt = display_manager.get_string("your_question")
+            prompt = "Your question (type 'quit' to exit): "
             question = input(prompt).strip()
 
             if question.lower() in ["quit", "exit", "q"]:
