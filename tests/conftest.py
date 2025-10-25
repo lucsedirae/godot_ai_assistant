@@ -24,15 +24,6 @@ from config import (
     WebConfig,
 )
 
-# Constants
-PYTEST_VERBOSITY = "-v"
-TEST_API_KEY = "test_key"
-TEST_MODEL_RESPONSE = "Test response"
-TEST_FILE_CONTENT = "Test file content"
-TEST_PROJECT_INFO = "Test project info"
-TEST_STRUCTURE = "Test structure"
-TEST_ANSWER = "Test answer"
-
 
 @pytest.fixture(scope="function")
 def mock_config(tmp_path):
