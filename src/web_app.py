@@ -12,6 +12,13 @@ from flask import Flask, render_template, request, jsonify
 from di_container import get_container
 from commands import CommandContext, CommandError
 
+from constants import (
+	STATUS_READY, STATUS_ERROR,
+	RESPONSE_TYPE_SUCCESS, RESPONSE_TYPE_ERROR,
+	RESPONSE_TYPE_FILE_CONTENT, RESPONSE_TYPE_FILE_LIST,
+	MAX_FILE_CONTENT_CONTEXT
+)
+
 # Initialize Flask app with explicit template folder
 template_dir = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates"

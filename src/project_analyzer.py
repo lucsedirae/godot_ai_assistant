@@ -1,6 +1,16 @@
 # src/project_analyzer.py
 import os
 from pathlib import Path
+from constants import (
+    GODOT_SCRIPT_EXTENSION,
+    GODOT_SCENE_EXTENSION,
+    GODOT_RESOURCE_EXTENSION,
+    GODOT_PROJECT_FILE,
+    MAX_STRUCTURE_DEPTH,
+    MAX_FILES_IN_LIST,
+    MAX_FILES_PER_DIRECTORY,
+    MAX_STRUCTURE_LINES,
+)
 
 
 class ProjectAnalyzer:
@@ -10,7 +20,7 @@ class ProjectAnalyzer:
         self.project_path = Path(project_path)
         self.project_exists = self.project_path.exists()
 
-    def get_project_structure(self, max_depth=3):
+    def get_project_structure(self, max_depth=MAX_STRUCTURE_DEPTH):
         """Get a tree-like structure of the project"""
         if not self.project_exists:
             return "No project mounted"
@@ -29,8 +39,15 @@ class ProjectAnalyzer:
                 structure.append(f"{indent}{os.path.basename(root)}/")
 
                 subindent = " " * 2 * (level + 1)
-                for file in sorted(files)[:10]:  # Limit files per directory
-                    if file.endswith((".gd", ".tscn", ".tres", ".godot")):
+                for file in sorted(files)[:MAX_FILES_PER_DIRECTORY]:  # Limit files per directory
+                    if file.endswith(
+                        (
+                            GODOT_SCRIPT_EXTENSION,
+                            GODOT_SCENE_EXTENSION,
+                            GODOT_RESOURCE_EXTENSION,
+                            GODOT_PROJECT_FILE,
+                        )
+                    ):
                         structure.append(f"{subindent}{file}")
 
             return "\n".join(structure[:100])  # Limit total lines
@@ -49,7 +66,7 @@ class ProjectAnalyzer:
         except Exception as e:
             return f"Error reading file: {e}"
 
-    def find_files(self, pattern="*.gd"):
+    def find_files(self, pattern=GODOT_SCRIPT_EXTENSION):
         """Find files matching a pattern"""
         if not self.project_exists:
             return []
@@ -58,7 +75,7 @@ class ProjectAnalyzer:
             return [
                 str(p.relative_to(self.project_path))
                 for p in self.project_path.rglob(pattern)
-            ][:50]
+            ][:MAX_FILES_IN_LIST]
         except Exception as e:
             return []
 

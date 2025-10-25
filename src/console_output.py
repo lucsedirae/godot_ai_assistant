@@ -2,10 +2,11 @@
 import os
 from data_loader import DataLoader
 from project_analyzer import ProjectAnalyzer
-
-COLOR_OK = "\033[92m"  # Green
-COLOR_END = "\033[0m"  # End color span
-COLOR_ERROR = "\033[96m"  # Cyan
+from constants import (
+    COLOR_OK,
+    COLOR_END,
+    COLOR_ERROR,
+)
 
 
 class ConsoleOutputManager:
