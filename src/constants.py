@@ -17,21 +17,12 @@ APP_DESCRIPTION = "An AI assistant for Godot game development."
 # =============================================================================
 API_PROVIDER_ANTHROPIC = "anthropic"
 API_PROVIDER_OPENAI = "openai"
-VALID_API_PROVIDERS = [API_PROVIDER_ANTHROPIC, API_PROVIDER_OPENAI]
 
 # =============================================================================
 # Embedding Configuration Constants
 # =============================================================================
 EMBEDDING_PROVIDER_LOCAL = "local"
 EMBEDDING_PROVIDER_OPENAI = "openai"
-VALID_EMBEDDING_PROVIDERS = [EMBEDDING_PROVIDER_LOCAL, EMBEDDING_PROVIDER_OPENAI]
-
-# =============================================================================
-# Model Names
-# =============================================================================
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
-DEFAULT_OPENAI_MODEL = "gpt-4-turbo-preview"
-DEFAULT_HUGGINGFACE_MODEL = "all-MiniLM-L6-v2"
 
 # =============================================================================
 # LLM Configuration
@@ -47,37 +38,12 @@ DEFAULT_CHUNK_OVERLAP = 200
 DEFAULT_RETRIEVAL_K = 6
 
 # =============================================================================
-# Web Server Configuration
-# =============================================================================
-DEFAULT_WEB_HOST = "0.0.0.0"
-DEFAULT_WEB_PORT = 5000
-DEFAULT_WEB_DEBUG = True
-
-# =============================================================================
-# Path Configuration
-# =============================================================================
-DEFAULT_PROJECT_PATH = "/app/project"
-DEFAULT_DOCS_PATH = "/app/godot_docs"
-DEFAULT_LORE_PATH = "/app/data/lore"
-DEFAULT_DB_PATH = "/app/data/chroma_db"
-
-# =============================================================================
-# Language/Localization
-# =============================================================================
-DEFAULT_LANGUAGE = "en"
-LANGUAGE_DATA_PATH_TEMPLATE = "src/output/data/{lang}.json"
-
-# =============================================================================
 # File Extensions
 # =============================================================================
 GODOT_SCRIPT_EXTENSION = "*.gd"
 GODOT_SCENE_EXTENSION = "*.tscn"
 GODOT_RESOURCE_EXTENSION = "*.tres"
 GODOT_PROJECT_FILE = "project.godot"
-
-# Document file extensions
-TEXT_EXTENSIONS = ["*.txt", "*.md", "*.rst"]
-DOC_EXTENSION_RST = "**/*.rst"
 
 # =============================================================================
 # Console Output Colors
@@ -90,11 +56,11 @@ COLOR_ERROR = "\033[96m"  # Cyan
 # Display Limits
 # =============================================================================
 MAX_FILE_CONTENT_DISPLAY = 3000
-MAX_FILE_CONTENT_CONTEXT = 4000
 MAX_FILES_PER_DIRECTORY = 10
 MAX_FILES_IN_LIST = 50
-MAX_STRUCTURE_LINES = 100
 MAX_STRUCTURE_DEPTH = 3
+MAX_STRUCTURE_LINES = 100
+MAX_FILE_CONTENT_CONTEXT = 4000
 
 # =============================================================================
 # Command Prefixes
@@ -106,14 +72,10 @@ COMMAND_LIST = "/list"
 COMMAND_LORE = "/lore"
 COMMAND_CLEAR = "/clear"
 
-# Command subcommands
-SUBCOMMAND_INFO = "info"
-SUBCOMMAND_STRUCTURE = "structure"
-
 # =============================================================================
 # Exit Commands
 # =============================================================================
-EXIT_COMMANDS = ["quit", "exit", "q"]
+# EXIT_COMMANDS = ["quit", "exit", "q"]
 
 # =============================================================================
 # Metadata Keys

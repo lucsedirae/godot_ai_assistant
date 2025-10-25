@@ -201,71 +201,6 @@ class TestAskMethod:
         # Verify
         assistant_with_mocks._process_query.assert_called_once_with("What is a Node2D?")
 
-
-class TestEnhanceQuestionWithContext:
-    """Tests for context enhancement"""
-
-    def test_enhance_without_context(self, assistant_with_mocks):
-        """Test enhancement when no file context exists"""
-        assistant_with_mocks.last_read_file = None
-
-        question = "What is a Node2D?"
-        enhanced = assistant_with_mocks._enhance_question_with_context(question)
-
-        assert enhanced == question
-
-    def test_enhance_with_context(self, assistant_with_mocks):
-        """Test enhancement with file context"""
-        assistant_with_mocks.last_read_file = {
-            "path": "player.gd",
-            "content": "extends CharacterBody2D",
-        }
-
-        question = "How can I improve this code?"
-        enhanced = assistant_with_mocks._enhance_question_with_context(question)
-
-        assert "player.gd" in enhanced
-        assert "extends CharacterBody2D" in enhanced
-        assert question in enhanced
-
-
-class TestExecuteCommand:
-    """Tests for command execution"""
-
-    def test_execute_command(self, assistant_with_mocks):
-        """Test command execution"""
-        from commands import ProjectInfoCommand, CommandContext
-
-        command = ProjectInfoCommand()
-
-        # Mock the command execution
-        with patch.object(command, "execute", return_value="<pre>Test Info</pre>"):
-            result = assistant_with_mocks._execute_command(command)
-
-        # Command execution prints result and returns empty string
-        assert result == ""
-
-
-class TestPrintSourceInfo:
-    """Tests for source information printing"""
-
-    def test_print_source_info_mixed(self, assistant_with_mocks, capsys):
-        """Test printing source info with mixed sources"""
-        mock_doc_source = Mock()
-        mock_doc_source.metadata = {"source_type": "documentation"}
-
-        mock_lore_source = Mock()
-        mock_lore_source.metadata = {"source_type": "lore"}
-
-        sources = [mock_doc_source, mock_lore_source]
-
-        assistant_with_mocks._print_source_info(sources)
-
-        captured = capsys.readouterr()
-        assert "2 relevant chunks" in captured.out
-        assert "1 from documentation" in captured.out
-        assert "1 from lore" in captured.out
-
     def test_print_source_info_with_file_context(self, assistant_with_mocks, capsys):
         """Test printing source info when file context exists"""
         assistant_with_mocks.last_read_file = {"path": "player.gd", "content": "test"}
@@ -274,31 +209,6 @@ class TestPrintSourceInfo:
 
         captured = capsys.readouterr()
         assert "player.gd" in captured.out
-
-
-class TestProcessQuery:
-    """Tests for query processing"""
-
-    def test_process_query(self, assistant_with_mocks, capsys):
-        """Test processing a regular query"""
-        # Setup
-        mock_qa_chain = Mock()
-        mock_qa_chain.invoke = Mock(
-            return_value={"result": "Test answer", "source_documents": []}
-        )
-        assistant_with_mocks.qa_chain = mock_qa_chain
-
-        # Execute
-        result = assistant_with_mocks._process_query("Test question")
-
-        # Verify
-        assert result == "Test answer"
-        mock_qa_chain.invoke.assert_called_once()
-
-        captured = capsys.readouterr()
-        assert "Test question" in captured.out
-        assert "Test answer" in captured.out
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

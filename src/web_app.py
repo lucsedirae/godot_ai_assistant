@@ -12,13 +12,6 @@ from flask import Flask, render_template, request, jsonify
 from di_container import get_container
 from commands import CommandContext, CommandError
 
-from constants import (
-	STATUS_READY, STATUS_ERROR,
-	RESPONSE_TYPE_SUCCESS, RESPONSE_TYPE_ERROR,
-	RESPONSE_TYPE_FILE_CONTENT, RESPONSE_TYPE_FILE_LIST,
-	MAX_FILE_CONTENT_CONTEXT
-)
-
 # Initialize Flask app with explicit template folder
 template_dir = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates"
@@ -114,7 +107,7 @@ def ask_question():
             )
 
         # Not a command - process as regular question
-        enhanced_question = assistant.enhance_with_context(question)
+        enhanced_question = _enhance_with_context(question, assistant)
 
         # Query the assistant
         result = assistant.qa_chain.invoke({"query": enhanced_question})
@@ -151,30 +144,55 @@ def get_status():
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
-# def _classify_command_result(result: str) -> str:
-#     """
-#     Classify command result for appropriate frontend handling.
 
-#     Args:
-#             result: Command execution result string
+def _classify_command_result(result: str) -> str:
+    """
+    Classify command result for appropriate frontend handling.
 
-#     Returns:
-#             Classification type string
-#     """
-#     result_lower = result.lower()
+    Args:
+            result: Command execution result string
 
-#     if "error" in result_lower or "❌" in result:
-#         return "error"
-#     elif "file" in result_lower and "loaded" in result_lower:
-#         return "file_content"
-#     elif "files matching" in result_lower:
-#         return "file_list"
-#     elif "project" in result_lower:
-#         return "project_info"
-#     elif "lore" in result_lower:
-#         return "lore_status"
-#     else:
-#         return "success"
+    Returns:
+            Classification type string
+    """
+    result_lower = result.lower()
+
+    if "error" in result_lower or "❌" in result:
+        return "error"
+    elif "file" in result_lower and "loaded" in result_lower:
+        return "file_content"
+    elif "files matching" in result_lower:
+        return "file_list"
+    elif "project" in result_lower:
+        return "project_info"
+    elif "lore" in result_lower:
+        return "lore_status"
+    else:
+        return "success"
+
+
+def _enhance_with_context(question: str, assistant) -> str:
+    """
+    Enhance question with file context if available.
+
+    Args:
+            question: Original question
+            assistant: Assistant instance
+
+    Returns:
+            Enhanced question with file context
+    """
+    if not assistant.last_read_file:
+        return question
+
+    return f"""I previously read the file: {assistant.last_read_file['path']}
+
+Here is the content of that file:
+```
+{assistant.last_read_file['content'][:4000]}
+```
+
+Now, my question is: {question}"""
 
 
 if __name__ == "__main__":
