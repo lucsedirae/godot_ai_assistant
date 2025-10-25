@@ -7,6 +7,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 from dotenv import load_dotenv
+from constants import ENV_API_PROVIDER, API_PROVIDER_ANTHROPIC
 import os
 
 # Load environment variables from .env file
@@ -24,7 +25,9 @@ class APIConfig:
     @classmethod
     def from_env(cls) -> "APIConfig":
         """Create API configuration from environment variables"""
-        provider = os.getenv("API_PROVIDER", "anthropic").lower()
+        # provider = os.getenv("API_PROVIDER", "anthropic").lower()
+        provider = os.getenv(ENV_API_PROVIDER, API_PROVIDER_ANTHROPIC).lower()
+
         return cls(
             provider=provider,
             anthropic_key=os.getenv("ANTHROPIC_API_KEY"),

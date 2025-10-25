@@ -17,6 +17,11 @@ from langchain.prompts import PromptTemplate
 
 from config import AppConfig
 from commands import CommandParser, CommandContext, CommandError
+from constants import (
+    DEFAULT_CHUNK_SIZE,
+    DEFAULT_CHUNK_OVERLAP,
+    DEFAULT_RETRIEVAL_K,
+)
 
 
 class GodotAIAssistant:
@@ -200,8 +205,8 @@ class GodotAIAssistant:
         # Split documents using configured chunk size
         print("\nSplitting documents into chunks...")
         text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.config.rag.chunk_size,
-            chunk_overlap=self.config.rag.chunk_overlap,
+            chunk_size=DEFAULT_CHUNK_SIZE,
+            chunk_overlap=DEFAULT_CHUNK_OVERLAP,
             length_function=len,
         )
         texts = text_splitter.split_documents(all_documents)
@@ -262,7 +267,7 @@ Helpful Answer:"""
             llm=self.llm,
             chain_type="stuff",
             retriever=self.vectorstore.as_retriever(
-                search_kwargs={"k": self.config.rag.retrieval_k}
+                search_kwargs={"k": DEFAULT_RETRIEVAL_K}
             ),
             chain_type_kwargs={"prompt": QA_PROMPT},
             return_source_documents=True,
