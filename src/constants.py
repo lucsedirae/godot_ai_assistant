@@ -6,6 +6,13 @@ All magic strings, numbers, and configuration defaults are defined here.
 from pathlib import Path
 
 # =============================================================================
+# Application Constants
+# =============================================================================
+APP_TITLE = "Godot AI Development Assistant"
+APP_VERSION = "0.1.0"
+APP_DESCRIPTION = "An AI assistant for Godot game development."
+
+# =============================================================================
 # API Configuration Constants
 # =============================================================================
 API_PROVIDER_ANTHROPIC = "anthropic"
@@ -145,53 +152,8 @@ ENV_LANGUAGE = "LANGUAGE"
 # =============================================================================
 CHAIN_TYPE_STUFF = "stuff"
 LENGTH_FUNCTION = len
-
-# =============================================================================
-# QA Prompt Template
-# =============================================================================
-QA_PROMPT_TEMPLATE = """You are an expert Godot game engine assistant with access to:
-1. Official Godot documentation
-2. Game/project lore and world-building documents
-3. The user's actual project files
-
-IMPORTANT CAPABILITIES:
-- You can read files from the user's project by asking them to share specific file paths
-- You can see the project structure when provided
-- You have access to lore documents that describe the game's world, characters, story, and setting
-- You should provide advice tailored to their specific project when relevant
-
-When answering questions about lore, story, characters, or world-building:
-- Use the lore documents provided in the context
-- Be specific and reference details from the lore
-- Help maintain consistency with established lore
-
-When answering technical Godot questions:
-- Use the Godot documentation in the context
-- Provide specific code examples using GDScript syntax
-- Reference best practices
-
-If you don't know the answer based on the context provided, just say that you don't know - don't make up information.
-
-Context (may include documentation and/or lore):
-{context}
-
-Question: {question}
-
-Helpful Answer:"""
-
 QA_PROMPT_INPUT_VARIABLES = ["context", "question"]
 
-# =============================================================================
-# File Context Enhancement Template
-# =============================================================================
-FILE_CONTEXT_TEMPLATE = """I previously read the file: {file_path}
-
-Here is the content of that file:
-```
-{file_content}
-```
-
-Now, my question is: {question}"""
 
 # =============================================================================
 # HTTP Status Messages
@@ -207,8 +169,6 @@ RESPONSE_TYPE_ERROR = "error"
 RESPONSE_TYPE_INFO = "info"
 RESPONSE_TYPE_FILE_CONTENT = "file_content"
 RESPONSE_TYPE_FILE_LIST = "file_list"
-RESPONSE_TYPE_PROJECT_INFO = "project_info"
-RESPONSE_TYPE_LORE_STATUS = "lore_status"
 
 # =============================================================================
 # Icon/Emoji Constants
@@ -300,38 +260,7 @@ TRUNCATE_MSG_CONTENT = "... (showing first {shown} chars of {total} total)"
 LOADER_AUTODETECT_ENCODING = True
 
 # =============================================================================
-# File Size Display
-# =============================================================================
-FILE_SIZE_FORMAT = "{size:,} bytes"
-
-# =============================================================================
-# Project Structure Display
-# =============================================================================
-INDENT_SPACES = 2
-INDENT_CHAR = " "
-
-# =============================================================================
 # HTML/Web Constants
 # =============================================================================
 HTML_PRE_TAG_OPEN = "<pre>"
 HTML_PRE_TAG_CLOSE = "</pre>"
-
-# =============================================================================
-# Pytest Configuration
-# =============================================================================
-PYTEST_VERBOSITY = "-v"
-TEST_API_KEY = "test_key"
-TEST_MODEL_RESPONSE = "Test response"
-
-# =============================================================================
-# Docker/Container Configuration
-# =============================================================================
-DOCKER_WORKDIR = "/app"
-
-# =============================================================================
-# Test Constants
-# =============================================================================
-TEST_FILE_CONTENT = "Test file content"
-TEST_PROJECT_INFO = "Test project info"
-TEST_STRUCTURE = "Test structure"
-TEST_ANSWER = "Test answer"

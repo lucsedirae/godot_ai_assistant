@@ -1,8 +1,10 @@
 # src/console_output.py
 import os
-from data_loader import DataLoader
 from project_analyzer import ProjectAnalyzer
 from constants import (
+    APP_TITLE,
+    APP_VERSION,
+    APP_DESCRIPTION,
     COLOR_OK,
     COLOR_END,
     COLOR_ERROR,
@@ -20,39 +22,6 @@ class ConsoleOutputManager:
                 lang: Language code for loading localized strings
         """
         self.lang = lang
-
-    def get_string(self, string_name: str) -> str | None:
-        """
-        Load a localized string from the language JSON file.
-
-        Args:
-                string_name: The key of the string to retrieve
-
-        Returns:
-                The localized string value, or None if not found
-        """
-        loader = DataLoader("src/output/data/" + self.lang + ".json")
-        return loader.get(string_name)
-
-    def print_commands(self) -> None:
-        """Print available project commands"""
-        print("\nProject Commands:")
-        print("  /project info      - Show project information")
-        print("  /project structure - Show project file structure")
-        print("  /read <file>       - Read a specific file (loads into context)")
-        print("  /list [pattern]    - List files (default: *.gd)")
-        print("  /lore              - Show lore files status")
-        print("  /clear             - Clear loaded file context")
-
-    def print_config(self, config: dict) -> None:
-        """
-        Print the current API and embedding provider configuration.
-
-        Args:
-                config: Dictionary containing 'api_provider' and 'embedding_provider' keys
-        """
-        print(f"\nUsing {config['api_provider'].upper()} API")
-        print(f"Using {config['embedding_provider'].upper()} embeddings")
 
     def print_error(self, error: Exception) -> None:
         """
@@ -84,19 +53,6 @@ You can:
         """Print a goodbye message when the user exits the application."""
         print(f"{COLOR_OK}\n\nGoodbye!{COLOR_END}")
 
-    def print_info(self, analyzer: ProjectAnalyzer) -> None:
-        """
-        Print basic project information.
-
-        Args:
-                analyzer: ProjectAnalyzer instance containing project information
-        """
-        print("\n" + "=" * 80)
-        print(COLOR_OK + "Project Information:" + COLOR_END)
-        print("=" * 80)
-        print(analyzer.get_project_info())
-        print("=" * 80)
-
     def print_project_status(self, analyzer: ProjectAnalyzer) -> None:
         """
         Print detailed project status information.
@@ -110,24 +66,14 @@ You can:
         print(analyzer.get_project_info())
         print("=" * 80)
 
-    def print_structure(self, analyzer: ProjectAnalyzer) -> None:
-        """
-        Print project structure tree.
-
-        Args:
-                analyzer: ProjectAnalyzer instance containing project information
-        """
-        print("\nProject Structure:")
-        print("=" * 80)
-        print(analyzer.get_project_structure())
-        print("\n" + "=" * 80)
-
     def print_title(self) -> None:
         """Print the application title with colored formatting."""
         print("=" * 80)
         print(COLOR_OK)
-        print(self.get_string("app_title"))
+        print(APP_TITLE)
+        print("Version:", APP_VERSION)
         print(COLOR_END)
+        print(APP_DESCRIPTION)
         print("=" * 80)
 
     def print_welcome_message(self) -> None:
